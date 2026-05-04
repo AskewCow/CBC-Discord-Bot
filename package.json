@@ -1,0 +1,24 @@
+{
+  "name": "cbc-discord-bot",
+  "version": "1.0.0",
+  "description": "TCD Claude Builder Club Discord Bot",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node scripts/deploy-commands.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "discord.js": "^14.26.4",
+    "dotenv": "^16.6.1",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
