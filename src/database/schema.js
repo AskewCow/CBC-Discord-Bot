@@ -1,6 +1,17 @@
 const db = require('./db');
 
+function migrateConfig() {
+  const cols = db.prepare("PRAGMA table_info(config)").all();
+  if (cols.length === 0) return; // doesn't exist yet — will be created fresh below
+  const isOldSchema = cols.some(c => c.name === 'updated_at');
+  if (isOldSchema) {
+    db.exec('DROP TABLE config');
+  }
+}
+
 function runSchema() {
+  migrateConfig();
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS members (
       discord_id   TEXT PRIMARY KEY,
@@ -81,6 +92,15 @@ function runSchema() {
       created_at     INTEGER NOT NULL,
       closed_at      INTEGER,
       log_message_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS config (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      key      TEXT NOT NULL,
+      value    TEXT NOT NULL,
+      added_at INTEGER NOT NULL,
+      UNIQUE(guild_id, key, value)
     );
   `);
 }
