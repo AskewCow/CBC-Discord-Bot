@@ -11,6 +11,7 @@
 - [Tickets](#tickets)
 - [Format Message](#format-message)
 - [Events](#events)
+- [Invites](#invites)
 
 ---
 
@@ -392,6 +393,63 @@ Running with no options shows the current configuration. If no custom message ha
 > *Thank you for attending! We hope to see you at our next event.*
 
 The `link_text` and `link_url` options must be provided together — a URL without label text (or vice versa) will not display a link.
+
+---
+
+---
+
+---
+
+## Invites
+
+The bot tracks which invite code each member used when joining. Invite counts reflect **currently active invitees** — if someone you invited leaves the server, they are deducted from your count automatically.
+
+### Setup required
+
+| Config key | Type | Purpose |
+|------------|------|---------|
+| `mod_log_channel` | Channel | Where leaderboard generation events are logged |
+
+### How tracking works
+
+- On startup the bot caches all existing invite codes and syncs their use counts to the database
+- When a member joins, the bot detects which invite code was used and records it
+- When a member leaves, they are marked as departed and no longer count toward any inviter's total
+- On restart, any members who left while the bot was offline are automatically detected and back-filled
+
+> **Note:** Joins that occur while the bot is completely offline cannot be attributed to an inviter — Discord does not expose which invite code a user used historically. Departures during downtime are reconciled on the next startup.
+
+---
+
+### `/invite-leaderboard`
+
+Posts the top 10 inviters as an embed. The embed **auto-updates** whenever a new member joins and **stops updating** when the message is deleted. Multiple leaderboards can be active simultaneously. **Admin only.**
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `scope` | Choice | Yes | The time window to count invites over (see below) |
+| `include_committee` | Boolean | Yes | Whether committee members appear in the rankings |
+
+**Scope choices:**
+
+| Value | Behaviour |
+|-------|-----------|
+| `All Time` | Counts all tracked joins since the bot began tracking, minus anyone who has since left |
+| `Live (from now)` | Counts only joins that happen after the leaderboard is sent, minus anyone who has since left |
+
+**Medals:** 🥇 🥈 🥉 are shown for the top three. Remaining positions are numbered.
+
+**Mod log:** Every time the command is run, a summary (requester, scope, committee setting, top 3) is posted to `mod_log_channel`.
+
+---
+
+### `/invites`
+
+Shows how many active invitees a member currently has — i.e. members they invited who are still in the server. Visible to everyone. Response is ephemeral (only visible to the person who ran it).
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `user` | User | No | Check another member's invite count instead of your own |
 
 ---
 
