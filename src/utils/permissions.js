@@ -14,14 +14,8 @@ function isCommittee(member) {
     .some(id => member.roles.cache.has(id));
 }
 
-function isMod(member) {
-  if (isCommittee(member)) return true;
-  return config.getValues(member.guild.id, CONFIG_KEYS.MOD_ROLE)
-    .some(id => member.roles.cache.has(id));
-}
-
 function hasRole(member, roleId) {
   return member.roles.cache.has(roleId);
 }
 
-module.exports = { isAdmin, isCommittee, isMod, hasRole };
+module.exports = { isAdmin, isCommittee, hasRole };

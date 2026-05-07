@@ -10,6 +10,7 @@ const {
 } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
+const { isAdmin } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -61,6 +62,9 @@ module.exports = {
   },
 
   async execute(interaction) {
+    if (!isAdmin(interaction.member)) {
+      return interaction.reply({ embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')], flags: MessageFlags.Ephemeral });
+    }
     const sub = interaction.options.getSubcommand();
 
     // ── setup ──────────────────────────────────────────────────────────────────

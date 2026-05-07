@@ -5,6 +5,7 @@ const ticketModals         = require('../../utils/ticketModals');
 const ticketHandlers       = require('../../utils/ticketHandlers');
 const onboardingModals     = require('../../utils/onboardingModals');
 const onboardingHandlers   = require('../../utils/onboardingHandlers');
+const formatMessage        = require('../../commands/admin/format-message');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -62,6 +63,7 @@ module.exports = {
         if (id === 'onboarding_flow:set_welcome')       return onboardingModals.handleFlowSetWelcome(interaction);
         if (id.startsWith('onboarding_flow:add_text:')) return onboardingModals.handleFlowAddText(interaction);
         if (id.startsWith('onboarding_flow:add_yn:'))   return onboardingModals.handleFlowAddYesNo(interaction);
+        if (id.startsWith('format_message:'))            return formatMessage.handleModal(interaction);
       } catch (err) {
         logger.error(`Modal error (${id}): ${err.message}`, err);
       }

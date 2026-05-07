@@ -7,6 +7,7 @@ const {
 const config = require('../../utils/config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
+const { isAdmin } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -42,6 +43,9 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    if (!isAdmin(interaction.member)) {
+      return interaction.reply({ embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')], flags: MessageFlags.Ephemeral });
+    }
     const from     = interaction.options.getString('from');
     const channel  = interaction.options.getChannel('channel');
     const category = interaction.options.getChannel('category');

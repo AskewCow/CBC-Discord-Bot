@@ -12,7 +12,6 @@ const CONFIG_KEYS = {
   // roles
   ADMIN_ROLE:            'admin_role',
   COMMITTEE_ROLE:        'committee_role',
-  MOD_ROLE:              'mod_role',
 };
 
 // Shared choice list for /setup-add and /setup-remove
@@ -27,7 +26,6 @@ const SETUP_CHOICES = [
   { name: 'Ticket Category',       value: 'ticket_category'       },
   { name: 'Admin Role',            value: 'admin_role'            },
   { name: 'Committee Role',        value: 'committee_role'        },
-  { name: 'Moderator Role',        value: 'mod_role'              },
 ];
 
 const CHANNEL_KEYS = new Set([
@@ -47,7 +45,6 @@ const CATEGORY_KEYS = new Set([
 const ROLE_KEYS = new Set([
   'admin_role',
   'committee_role',
-  'mod_role',
 ]);
 
 module.exports = { CONFIG_KEYS, SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS };

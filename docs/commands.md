@@ -9,6 +9,7 @@
 - [Setup](#setup)
 - [Onboarding](#onboarding)
 - [Tickets](#tickets)
+- [Format Message](#format-message)
 
 ---
 
@@ -35,7 +36,6 @@ Adds a configuration value for the server (channels, categories, roles).
 | `ticket_channel` | Channel | Where ticket panels are posted |
 | `ticket_category` | Category | Category that new ticket channels are created under |
 | `admin_role` | Role | Full staff access on ticket channels |
-| `mod_role` | Role | Full staff access on ticket channels |
 | `committee_role` | Role | Full staff access on ticket channels |
 
 Running the command with no value shows the current entries for that setting.
@@ -198,11 +198,64 @@ Removes all flow steps from a category.
 
 ---
 
+---
+
+## Format Message
+
+### `/format-message`
+
+Posts a styled message to the current channel. Opens a modal to compose the content after options are selected. **Admin only** — hidden from regular members.
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `style` | Choice | Yes | The message type (see styles below) |
+| `embed` | Boolean | Yes | Post as a rich embed (`true`) or plain text (`false`) |
+| `color` | Choice | No | Embed accent color; ignored for plain text (default: style preset) |
+| `ping_everyone` | Boolean | No | Send an `@everyone` ping as a follow-up after the message (default: `false`) |
+
+**Styles:**
+
+| Value | Label | Default embed color |
+|-------|-------|---------------------|
+| `announcement` | 📢 Announcement | Sky `#6A9BCC` |
+| `reminder` | ⏰ Reminder | Terracotta `#D97757` |
+| `shoutout` | 🌟 Shoutout | Sand `#CD9D7D` |
+| `resource` | 📚 Resource | Sage `#788C5D` |
+
+**Color choices:**
+
+| Name | Hex |
+|------|-----|
+| Default (style preset) | — |
+| Black | `#141413` |
+| White | `#FAF9F5` |
+| Stone | `#B0AEA5` |
+| Mist | `#E8E6DC` |
+| Terracotta | `#D97757` |
+| Sky | `#6A9BCC` |
+| Sage | `#788C5D` |
+| Sand | `#CD9D7D` |
+
+**Modal fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Title | Yes | Shown as the embed title or bolded header in plain text |
+| Body | Yes | Main message content; supports markdown and newlines |
+| Link label | No | Display text for an optional hyperlink |
+| Link URL | No | Must start with `http://` or `https://`; validated before posting |
+
+**`@everyone` ping behaviour:**
+
+Discord suppresses `@everyone` mentions inside embeds. When `ping_everyone` is `true`, the bot sends a separate plain `@everyone` message immediately after the main message so the ping fires correctly.
+
+---
+
 ### Ticket channel behaviour
 
 - Created under `ticket_category` if configured
 - Named `ticket-XXXX` (zero-padded ticket ID)
-- Visible to: ticket opener, admin roles, mod roles, committee roles
+- Visible to: ticket opener, admin roles, committee roles
 - Hidden from everyone else
 - Includes a **Close Ticket** button; closing prompts for confirmation, then deletes the channel and logs the closure to `mod_log_channel`
 - A member can only have one open ticket at a time per server

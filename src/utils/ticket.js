@@ -235,7 +235,6 @@ async function createTicketChannel(guild, opener, topic, panelId, optionId) {
   const cfg       = require('./config');
   const categories = cfg.getValues(guild.id, 'ticket_category');
   const adminRoles = cfg.getValues(guild.id, 'admin_role');
-  const modRoles   = cfg.getValues(guild.id, 'mod_role');
   const commRoles  = cfg.getValues(guild.id, 'committee_role');
 
   const now = Math.floor(Date.now() / 1000);
@@ -268,8 +267,7 @@ async function createTicketChannel(guild, opener, topic, panelId, optionId) {
     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: opener.id, allow: openerAllow },
     ...adminRoles.map(id => ({ id, allow: staffAllow })),
-    ...modRoles.map(id  => ({ id, allow: staffAllow })),
-    ...commRoles.map(id => ({ id, allow: staffAllow })),
+    ...commRoles.map(id  => ({ id, allow: staffAllow })),
   ];
 
   const channel = await guild.channels.create({

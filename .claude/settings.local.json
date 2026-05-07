@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm \"/mnt/c/Users/Adam/Documents/CBC-Discord-Bot/src/commands/admin/announce.js\")"
+    ]
+  }
+}
