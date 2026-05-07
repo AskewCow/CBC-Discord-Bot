@@ -3,7 +3,9 @@
     "allow": [
       "Bash(rm \"/mnt/c/Users/Adam/Documents/CBC-Discord-Bot/src/commands/admin/announce.js\")",
       "Bash(del \"C:\\\\Users\\\\Adam\\\\Documents\\\\CBC-Discord-Bot\\\\src\\\\commands\\\\events\\\\register-event.js\")",
-      "PowerShell(Remove-Item \"C:\\\\Users\\\\Adam\\\\Documents\\\\CBC-Discord-Bot\\\\src\\\\commands\\\\events\\\\register-event.js\" -Confirm:$false)"
+      "PowerShell(Remove-Item \"C:\\\\Users\\\\Adam\\\\Documents\\\\CBC-Discord-Bot\\\\src\\\\commands\\\\events\\\\register-event.js\" -Confirm:$false)",
+      "Bash(Get-ChildItem -Recurse -Directory)",
+      "Bash(Select-Object -First 20 FullName)"
     ]
   }
 }

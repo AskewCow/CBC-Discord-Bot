@@ -1,5 +1,26 @@
 const db = require('./db');
 
+function migrateInvites() {
+  const cols = db.prepare("PRAGMA table_info(invites)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('guild_id')) db.exec("ALTER TABLE invites ADD COLUMN guild_id TEXT NOT NULL DEFAULT ''");
+}
+
+function migrateInviteLeaderboards() {
+  const cols = db.prepare("PRAGMA table_info(invite_leaderboards)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('scope')) db.exec("ALTER TABLE invite_leaderboards ADD COLUMN scope TEXT NOT NULL DEFAULT 'all_time'");
+}
+
+function migrateMembers() {
+  const cols = db.prepare("PRAGMA table_info(members)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('left_at')) db.exec('ALTER TABLE members ADD COLUMN left_at INTEGER');
+}
+
 function migrateConfig() {
   const cols = db.prepare("PRAGMA table_info(config)").all();
   if (cols.length === 0) return;
@@ -40,6 +61,9 @@ function migrateEventRegistrations() {
 }
 
 function runSchema() {
+  migrateInvites();
+  migrateInviteLeaderboards();
+  migrateMembers();
   migrateConfig();
   migrateTickets();
   migrateEvents();
@@ -237,6 +261,16 @@ function runSchema() {
       message   TEXT NOT NULL DEFAULT 'Thank you for attending! We hope to see you at our next event.',
       link_text TEXT,
       link_url  TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS invite_leaderboards (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id          TEXT NOT NULL,
+      channel_id        TEXT NOT NULL,
+      message_id        TEXT NOT NULL UNIQUE,
+      scope             TEXT NOT NULL DEFAULT 'all_time',
+      started_at        INTEGER NOT NULL,
+      include_committee INTEGER NOT NULL DEFAULT 1
     );
   `);
 }
