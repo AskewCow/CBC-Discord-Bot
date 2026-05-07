@@ -3,12 +3,14 @@ const {
   PermissionFlagsBits,
   ChannelType,
   MessageFlags,
+  EmbedBuilder,
 } = require('discord.js');
 const config = require('../../utils/config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { isAdmin } = require('../../utils/permissions');
 const { buildSetupBoard } = require('../../utils/setupBoard');
+const { logToModLog } = require('../../utils/eventHandlers');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -98,6 +100,17 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
+
+    const logEmbed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('⚙️⠀Setup Updated — Added')
+      .addFields(
+        { name: 'Setting',    value: label,                           inline: true },
+        { name: 'Value',      value: mention,                         inline: true },
+        { name: 'Updated By', value: `<@${interaction.user.id}>`,    inline: true },
+      )
+      .setTimestamp();
+    await logToModLog(interaction.client, interaction.guildId, logEmbed);
 
     return interaction.reply({
       embeds: [successEmbed('Setting updated', `Added ${mention} to **${label}**.`), buildSetupBoard(interaction.guildId)],

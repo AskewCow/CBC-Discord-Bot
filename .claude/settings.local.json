@@ -5,7 +5,8 @@
       "Bash(del \"C:\\\\Users\\\\Adam\\\\Documents\\\\CBC-Discord-Bot\\\\src\\\\commands\\\\events\\\\register-event.js\")",
       "PowerShell(Remove-Item \"C:\\\\Users\\\\Adam\\\\Documents\\\\CBC-Discord-Bot\\\\src\\\\commands\\\\events\\\\register-event.js\" -Confirm:$false)",
       "Bash(Get-ChildItem -Recurse -Directory)",
-      "Bash(Select-Object -First 20 FullName)"
+      "Bash(Select-Object -First 20 FullName)",
+      "Bash(npm run *)"
     ]
   }
 }

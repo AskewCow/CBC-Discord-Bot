@@ -52,6 +52,20 @@ function migrateEvents() {
   if (!names.has('ongoing_notified'))    db.exec('ALTER TABLE events ADD COLUMN ongoing_notified INTEGER NOT NULL DEFAULT 0');
 }
 
+function migrateProjects() {
+  const cols = db.prepare("PRAGMA table_info(projects)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('thumbnail_url'))      db.exec("ALTER TABLE projects ADD COLUMN thumbnail_url TEXT");
+  if (!names.has('built_with'))         db.exec("ALTER TABLE projects ADD COLUMN built_with TEXT");
+  if (!names.has('guild_id'))           db.exec("ALTER TABLE projects ADD COLUMN guild_id TEXT");
+  if (!names.has('thread_id'))          db.exec("ALTER TABLE projects ADD COLUMN thread_id TEXT");
+  if (!names.has('review_message_id'))  db.exec("ALTER TABLE projects ADD COLUMN review_message_id TEXT");
+  if (!names.has('vote_ends_at'))       db.exec("ALTER TABLE projects ADD COLUMN vote_ends_at INTEGER");
+  if (!names.has('vote_closed'))        db.exec("ALTER TABLE projects ADD COLUMN vote_closed INTEGER NOT NULL DEFAULT 0");
+  if (!names.has('submitter_tag'))      db.exec("ALTER TABLE projects ADD COLUMN submitter_tag TEXT");
+}
+
 function migrateEventRegistrations() {
   const cols = db.prepare("PRAGMA table_info(event_registrations)").all();
   if (cols.length === 0) return;
@@ -68,6 +82,7 @@ function runSchema() {
   migrateTickets();
   migrateEvents();
   migrateEventRegistrations();
+  migrateProjects();
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS members (
@@ -112,15 +127,31 @@ function runSchema() {
     );
 
     CREATE TABLE IF NOT EXISTS projects (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      name         TEXT NOT NULL,
-      description  TEXT NOT NULL,
-      github_url   TEXT,
-      builder_name TEXT NOT NULL,
-      submitted_by TEXT NOT NULL,
-      submitted_at INTEGER NOT NULL,
-      approved     INTEGER NOT NULL DEFAULT 0,
-      message_id   TEXT
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      name              TEXT NOT NULL,
+      description       TEXT NOT NULL,
+      github_url        TEXT,
+      builder_name      TEXT NOT NULL,
+      submitted_by      TEXT NOT NULL,
+      submitter_tag     TEXT,
+      submitted_at      INTEGER NOT NULL,
+      approved          INTEGER NOT NULL DEFAULT 0,
+      message_id        TEXT,
+      thumbnail_url     TEXT,
+      built_with        TEXT,
+      guild_id          TEXT,
+      thread_id         TEXT,
+      review_message_id TEXT,
+      vote_ends_at      INTEGER,
+      vote_closed       INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS project_votes (
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      discord_id TEXT NOT NULL,
+      vote       TEXT NOT NULL CHECK(vote IN ('up', 'down')),
+      voted_at   INTEGER NOT NULL,
+      PRIMARY KEY (project_id, discord_id)
     );
 
     CREATE TABLE IF NOT EXISTS invites (

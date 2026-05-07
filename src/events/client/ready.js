@@ -1,7 +1,8 @@
 const { Events } = require('discord.js');
 const db             = require('../../database/db');
 const logger         = require('../../utils/logger');
-const eventScheduler = require('../../utils/eventScheduler');
+const eventScheduler   = require('../../utils/eventScheduler');
+const projectScheduler = require('../../utils/projectScheduler');
 
 const upsertInvite = db.prepare(`
   INSERT INTO invites (code, inviter_id, uses, guild_id, created_at)
@@ -71,5 +72,6 @@ module.exports = {
     logger.info(`Bot ready: ${client.user.tag}`);
     await cacheGuildInvites(client);
     eventScheduler.start(client);
+    projectScheduler.start(client);
   },
 };

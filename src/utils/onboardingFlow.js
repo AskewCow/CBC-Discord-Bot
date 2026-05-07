@@ -36,6 +36,7 @@ async function startOnboardingFlow(member, guild) {
 
   if (flow.flow_type === 'welcome') {
     _markOnboarded(member.id);
+    await _assignMemberRole(member.id, guild);
     return;
   }
 
@@ -158,7 +159,10 @@ async function _completeFlow(dmChannel, session, guild) {
     ],
   });
 
-  if (guild) await _postModLog(session, guild);
+  if (guild) {
+    await _assignMemberRole(session.discord_id, guild);
+    await _postModLog(session, guild);
+  }
 }
 
 async function _postModLog(session, guild) {
@@ -207,6 +211,18 @@ async function _postModLog(session, guild) {
     } catch (err) {
       logger.warn(`Could not post onboarding log to channel ${channelId}: ${err.message}`);
     }
+  }
+}
+
+async function _assignMemberRole(discordId, guild) {
+  const [roleId] = cfg.getValues(guild.id, 'member_role');
+  if (!roleId) return;
+  try {
+    const member = await guild.members.fetch(discordId);
+    await member.roles.add(roleId);
+    logger.info(`Assigned member role ${roleId} to ${discordId} in guild ${guild.id}`);
+  } catch (err) {
+    logger.warn(`Could not assign member role to ${discordId}: ${err.message}`);
   }
 }
 

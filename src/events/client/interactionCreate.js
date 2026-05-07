@@ -8,6 +8,8 @@ const onboardingHandlers   = require('../../utils/onboardingHandlers');
 const formatMessage        = require('../../commands/admin/format-message');
 const eventHandlers        = require('../../utils/eventHandlers');
 const eventCreate          = require('../../commands/events/event-create');
+const submitProject        = require('../../commands/projects/submit-project');
+const projectHandlers      = require('../../utils/projectHandlers');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -67,6 +69,7 @@ module.exports = {
         if (id.startsWith('onboarding_flow:add_yn:'))   return onboardingModals.handleFlowAddYesNo(interaction);
         if (id.startsWith('format_message:'))            return formatMessage.handleModal(interaction);
         if (id === 'event_create')                       return eventCreate.handleModal(interaction);
+        if (id === 'submit_project')                     return submitProject.handleModal(interaction);
       } catch (err) {
         logger.error(`Modal error (${id}): ${err.message}`, err);
       }
@@ -97,6 +100,7 @@ module.exports = {
         if (id.startsWith('event:register:'))         return eventHandlers.handleRegister(interaction);
         if (id.startsWith('event:withdraw:'))         return eventHandlers.handleWithdraw(interaction);
         if (id.startsWith('event:attend:'))           return eventHandlers.handleAttend(interaction);
+        if (id.startsWith('project:vote:'))           return projectHandlers.handleVote(interaction);
       } catch (err) {
         logger.error(`Button error (${id}): ${err.message}`, err);
       }

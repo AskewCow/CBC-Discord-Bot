@@ -1,6 +1,6 @@
 # CBC Discord Bot — Command & Behaviour Reference
 
-> Updated as features are added. All admin commands require the **Administrator** permission.
+> Updated as features are added. All admin commands require the **Administrator** permission unless noted otherwise.
 
 ---
 
@@ -12,64 +12,92 @@
 - [Format Message](#format-message)
 - [Events](#events)
 - [Invites](#invites)
+- [Projects](#projects)
 
 ---
 
 ## Setup
 
 ### `/setup-add`
-Adds a configuration value for the server (channels, categories, roles). After every add, a full setup board is shown reflecting the current state.
+
+Adds a configuration value for the server (channels, categories, or roles). After every successful add, a full setup board is shown reflecting the current state.
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `type` | Choice | The setting to configure (see choices below) |
-| `channel` / `category` / `role` | Mention | The value to add (type must match) |
+| `channel` | Text Channel | Value to add for channel-type settings |
+| `category` | Category | Value to add for category-type settings |
+| `role` | Role | Value to add for role-type settings |
+
+Running the command without providing a value shows the full setup board. Multiple values are supported per setting (e.g. several mod log channels).
+
+**Every successful add is logged to `mod_log_channel`** showing the setting changed, the value added, and the admin who made the change.
 
 **Configurable settings:**
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `announcements_channel` | Channel | Where announcements are posted |
-| `mod_log_channel` | Channel | Where mod/admin log embeds are sent |
-| `onboarding_channel` | Channel | Reserved for onboarding-related use |
-| `projects_channel` | Channel | Where project submissions are posted |
-| `events_channel` | Channel | Where event posts are sent |
-| `general_channel` | Channel | General channel reference |
-| `ticket_channel` | Channel | Where ticket panels are posted |
-| `ticket_category` | Category | Category that new ticket channels are created under |
-| `admin_role` | Role | Full staff access on ticket channels |
-| `committee_role` | Role | Full staff access on ticket channels |
+| Setting Name | Key | Type | Description |
+|---|---|---|---|
+| Announcements Channel | `announcements_channel` | Channel | Where announcements are posted |
+| Mod Log Channel | `mod_log_channel` | Channel | Where mod/admin log embeds are sent |
+| Onboarding Channel | `onboarding_channel` | Channel | Reserved for onboarding-related use |
+| Projects Channel | `projects_channel` | Channel | Where approved project submissions are publicly posted |
+| Projects Review Channel | `projects_review_channel` | Channel | Committee-only channel where project submissions are reviewed and voted on |
+| Events Channel | `events_channel` | Channel | Where event embeds are posted |
+| General Channel | `general_channel` | Channel | General channel reference |
+| Ticket Panel Channel | `ticket_channel` | Channel | Where ticket panels are posted |
+| Ticket Category | `ticket_category` | Category | Category that new ticket channels are created under |
+| Admin Role | `admin_role` | Role | Full staff access on ticket channels |
+| Committee Role | `committee_role` | Role | Full staff access on ticket channels |
+| Member Role | `member_role` | Role | **Automatically assigned when a member completes onboarding.** This should be the role that grants access to general chat channels. See [Onboarding](#onboarding) for details. |
 
-Running the command with no value shows the full setup board for the server.
-Multiple values are supported per setting (e.g. several mod roles).
+---
 
 ### `/setup-remove`
-Removes a configuration value. Same options as `/setup-add`. After every removal, the full setup board is shown.
+
+Removes a configuration value. Same options as `/setup-add`. After every successful removal, the full setup board is shown.
+
+**Every successful removal is also logged to `mod_log_channel`** showing the setting changed, the value removed, and the admin who made the change.
+
+---
 
 ### `/setup-view`
+
 Shows the current server configuration as a setup board. Each setting displays ✅ with its linked values or ❌ if unconfigured. **Admin only.**
 
 ---
 
 ## Onboarding
 
-Onboarding sends an automatic DM to members when they join. Admins configure either a simple welcome message, a question form, or both together.
+Onboarding sends an automatic DM to new members when they join. Admins configure either a simple welcome message, a question form, or both.
 
 ### Flow types
 
 | Type | Behaviour |
 |------|-----------|
-| **Welcome only** | Sends a single welcome embed and marks the member as onboarded |
+| **Welcome only** | Sends a single welcome embed and immediately marks the member as onboarded |
 | **Questions only** | Walks the member through a series of questions via DM |
 | **Welcome + Questions** | Sends the welcome message first, then starts the question form |
 
-The welcome message and the question form are configured independently and can coexist. Setting a welcome message never removes existing questions, and adding questions never removes the welcome message.
+The welcome message and question form are configured independently and can coexist. Setting a welcome message never removes existing questions, and vice versa.
 
-### On form completion
+---
 
-When a member finishes the question form, the bot:
-1. Sends a completion confirmation embed in the DM
-2. Posts a **Member Joined** embed to `mod_log_channel` containing all questions and answers
+### On completion
+
+When a member finishes onboarding (either by completing the question form, or instantly on join for welcome-only flows), the bot:
+
+1. Sends a completion confirmation embed in the DM *(questions flow only)*
+2. **Assigns the `member_role`** to the member, if one has been configured via `/setup-add`
+3. Posts a **Member Joined** embed to `mod_log_channel` containing all questions and answers *(questions flow only)*
+
+> **`member_role` is the primary mechanism for granting server access.** The intended setup is:
+> - Lock general chat channels so only the Member Role can see/send messages
+> - New members land in a restricted area until onboarding is complete
+> - Once they finish, the bot assigns `member_role` automatically, opening up the rest of the server
+>
+> If `member_role` is not configured in `/setup-add`, the role assignment step is silently skipped and the rest of onboarding proceeds normally.
+
+---
 
 ### DM behaviour
 
@@ -83,8 +111,6 @@ When a member finishes the question form, the bot:
 ### `/onboarding-flow set-welcome`
 
 Opens a modal to set the welcome message. This is sent as the first DM whenever a member joins, regardless of whether a question form is also configured.
-
-To remove the welcome message without deleting the whole flow, use `/onboarding-flow set-welcome` and leave the field blank is not supported — use `/onboarding-flow delete` to remove everything, then re-add just the questions with `/onboarding-flow add`.
 
 ---
 
@@ -139,6 +165,18 @@ Deletes the entire onboarding flow including the welcome message and all questio
 
 Tickets create a private channel between a member and staff. Admins set up a panel with categories, and each category can have an automated message flow.
 
+### Setup required
+
+| Config key | Type | Purpose |
+|------------|------|---------|
+| `ticket_channel` | Channel | Where the ticket panel embed is posted |
+| `ticket_category` | Category | Category that new ticket channels are created under |
+| `admin_role` | Role | Granted access to all ticket channels |
+| `committee_role` | Role | Granted access to all ticket channels |
+| `mod_log_channel` | Channel | Where ticket closures are logged |
+
+---
+
 ### `/ticket-panel setup`
 
 Opens a modal to create or update the ticket panel in the current channel. Sets the embed title and description shown above the category dropdown.
@@ -154,8 +192,6 @@ Adds a category to the panel dropdown. Members select a category when opening a 
 | Label | Category name shown in the dropdown |
 | Description | Short description shown below the label (optional) |
 | Emoji | Emoji shown next to the label (optional) |
-
-An **Other** option is always appended automatically and cannot be manually added.
 
 ---
 
@@ -203,13 +239,22 @@ Removes all flow steps from a category.
 
 ---
 
+### Ticket channel behaviour
+
+- Created under `ticket_category` if configured
+- Named `ticket-XXXX` (zero-padded ticket ID)
+- Visible to: ticket opener, admin roles, committee roles
+- Hidden from everyone else
+- Includes a **Close Ticket** button; closing prompts for confirmation, then deletes the channel and logs the closure to `mod_log_channel`
+- A member can only have one open ticket at a time per server
+
 ---
 
 ## Format Message
 
 ### `/format-message`
 
-Posts a styled message to the current channel. Opens a modal to compose the content after options are selected. **Admin only** — hidden from regular members.
+Posts a styled message to the current channel. Opens a modal to compose the content after options are selected. **Admin only.**
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
@@ -250,11 +295,7 @@ Posts a styled message to the current channel. Opens a modal to compose the cont
 | Link label | No | Display text for an optional hyperlink |
 | Link URL | No | Must start with `http://` or `https://`; validated before posting |
 
-**`@everyone` ping behaviour:**
-
-Discord suppresses `@everyone` mentions inside embeds. When `ping_everyone` is `true`, the bot sends a separate plain `@everyone` message immediately after the main message so the ping fires correctly.
-
----
+**`@everyone` ping behaviour:** Discord suppresses `@everyone` inside embeds. When `ping_everyone` is `true`, the bot sends a separate plain `@everyone` message immediately after the main message so the ping fires correctly.
 
 ---
 
@@ -286,7 +327,7 @@ Creates a new event. **Admin or Committee only.**
 | `organizer1` | User | Yes | Primary organiser |
 | `organizer2–5` | User | No | Up to four additional organisers |
 
-**Step 2 — form (modal):** After submitting the slash command, a form opens with:
+**Step 2 — form (modal):**
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -294,9 +335,7 @@ Creates a new event. **Admin or Committee only.**
 | Location | Yes | Where it takes place |
 | Description | No | Optional description shown on the event embed |
 
-All parameters are validated before the form opens. If the date/time is invalid or in the past, an error is shown immediately.
-
-**Event types and embed colours (Anthropic brand palette):**
+**Event types and embed colours:**
 
 | Type | Colour |
 |------|--------|
@@ -307,7 +346,7 @@ All parameters are validated before the form opens. If the date/time is invalid 
 | Tabling | Mist `#E8E6DC` |
 
 **What happens on creation:**
-- Event embed is posted to `events_channel` with a **Register** button
+- Event embed posted to `events_channel` with a **Register** button
 - All organisers are automatically registered as participants
 - If `ping` is `true`, `@everyone` is sent as a separate message immediately after
 - Event creation is logged to `mod_log_channel`
@@ -323,12 +362,10 @@ Cancels and permanently deletes an event. **Admin only.**
 | `event` | Autocomplete | Yes | The event to delete (shows upcoming events by name) |
 
 **What happens on deletion:**
-- The event embed in `events_channel` is edited to show a red **Cancelled** notice and the register button is removed
-- Every currently registered participant (not withdrawn) receives a cancellation DM with an apology and the original event details
-- The event and all associated data (registrations, reminders, organizers) are permanently deleted
+- The event embed is edited to show a red **Cancelled** notice with the register button removed
+- Every currently registered participant (not withdrawn) receives a cancellation DM
+- All associated data (registrations, reminders, organisers) is permanently deleted
 - Deletion is logged to `mod_log_channel` with a participant notification count
-
-Only admins can delete events regardless of whether they are the organiser or creator.
 
 ---
 
@@ -336,14 +373,14 @@ Only admins can delete events regardless of whether they are the organiser or cr
 
 **Registering:**
 - Any server member can click the **Register** button on the event embed
-- A confirmation DM is sent containing event details and a red **Withdraw Registration** button
-- The organiser(s) and the person who ran `/event-create` receive a DM with the registrant's username and updated participant total
+- A confirmation DM is sent with event details and a **Withdraw Registration** button
+- Organiser(s) and the event creator receive a DM with the registrant's username and updated total
 - The embed's participant count updates live
 
 **Withdrawing:**
 - Click **Withdraw Registration** in the confirmation DM
-- The organiser(s) and creator are notified with the updated participant total
-- The person can re-register at any time using the original event embed
+- Organiser(s) and creator are notified with the updated total
+- The member can re-register at any time from the original event embed
 
 ---
 
@@ -368,13 +405,8 @@ When an event ends (calculated from `datetime` + `duration`):
 2. Every current participant (excluding organisers) receives a DM asking if they attended (Yes / No buttons)
 3. **Yes** → participant receives the configured follow-up message (see `/event-followup`)
 4. **No** → participant receives a "hope to see you next time" message
-5. Each response is logged to `mod_log_channel` with the event name, organiser(s), user, and answer
+5. Each response is logged to `mod_log_channel`
 6. A summary embed is DM'd to all organiser(s) and the event creator, and posted to `mod_log_channel`
-
-**Summary includes:**
-- Total unique registrations
-- Total withdrawn (current state)
-- Final participant count
 
 ---
 
@@ -392,17 +424,13 @@ Running with no options shows the current configuration. If no custom message ha
 
 > *Thank you for attending! We hope to see you at our next event.*
 
-The `link_text` and `link_url` options must be provided together — a URL without label text (or vice versa) will not display a link.
-
----
-
----
+`link_text` and `link_url` must be provided together.
 
 ---
 
 ## Invites
 
-The bot tracks which invite code each member used when joining. Invite counts reflect **currently active invitees** — if someone you invited leaves the server, they are deducted from your count automatically.
+The bot tracks which invite code each member used when joining. Counts reflect **currently active invitees** — if someone you invited leaves, they are deducted automatically.
 
 ### Setup required
 
@@ -412,22 +440,22 @@ The bot tracks which invite code each member used when joining. Invite counts re
 
 ### How tracking works
 
-- On startup the bot caches all existing invite codes and syncs their use counts to the database
-- When a member joins, the bot detects which invite code was used and records it
+- On startup the bot caches all existing invite codes and syncs use counts to the database
+- When a member joins, the bot records which invite code was used
 - When a member leaves, they are marked as departed and no longer count toward any inviter's total
-- On restart, any members who left while the bot was offline are automatically detected and back-filled
+- On restart, any members who left while the bot was offline are automatically back-filled
 
-> **Note:** Joins that occur while the bot is completely offline cannot be attributed to an inviter — Discord does not expose which invite code a user used historically. Departures during downtime are reconciled on the next startup.
+> **Note:** Joins that occur while the bot is completely offline cannot be attributed to an inviter. Departures during downtime are reconciled on next startup.
 
 ---
 
 ### `/invite-leaderboard`
 
-Posts the top 10 inviters as an embed. The embed **auto-updates** whenever a new member joins and **stops updating** when the message is deleted. Multiple leaderboards can be active simultaneously. **Admin only.**
+Posts the top 10 inviters as an embed. The embed **auto-updates** when new members join and **stops updating** when the message is deleted. Multiple leaderboards can be active simultaneously. **Admin only.**
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `scope` | Choice | Yes | The time window to count invites over (see below) |
+| `scope` | Choice | Yes | The time window to count invites over |
 | `include_committee` | Boolean | Yes | Whether committee members appear in the rankings |
 
 **Scope choices:**
@@ -435,17 +463,17 @@ Posts the top 10 inviters as an embed. The embed **auto-updates** whenever a new
 | Value | Behaviour |
 |-------|-----------|
 | `All Time` | Counts all tracked joins since the bot began tracking, minus anyone who has since left |
-| `Live (from now)` | Counts only joins that happen after the leaderboard is sent, minus anyone who has since left |
+| `Live (from now)` | Counts only joins after the leaderboard is sent, minus anyone who has since left |
 
-**Medals:** 🥇 🥈 🥉 are shown for the top three. Remaining positions are numbered.
+**Medals:** 🥇 🥈 🥉 for the top three. Remaining positions are numbered.
 
-**Mod log:** Every time the command is run, a summary (requester, scope, committee setting, top 3) is posted to `mod_log_channel`.
+**Mod log:** Every time the command is run, a summary is posted to `mod_log_channel`.
 
 ---
 
 ### `/invites`
 
-Shows how many active invitees a member currently has — i.e. members they invited who are still in the server. Visible to everyone. Response is ephemeral (only visible to the person who ran it).
+Shows how many active invitees a member currently has. Visible to everyone. Response is ephemeral.
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
@@ -453,11 +481,64 @@ Shows how many active invitees a member currently has — i.e. members they invi
 
 ---
 
-### Ticket channel behaviour
+## Projects
 
-- Created under `ticket_category` if configured
-- Named `ticket-XXXX` (zero-padded ticket ID)
-- Visible to: ticket opener, admin roles, committee roles
-- Hidden from everyone else
-- Includes a **Close Ticket** button; closing prompts for confirmation, then deletes the channel and logs the closure to `mod_log_channel`
-- A member can only have one open ticket at a time per server
+Members can submit projects to the server showcase using `/submit-project`. Each submission posts publicly in `projects_channel` with an auto-opened discussion thread, and simultaneously sends a copy to `projects_review_channel` where committee members vote on whether to feature it on the website.
+
+### Setup required
+
+| Config key | Type | Purpose |
+|------------|------|---------|
+| `projects_channel` | Channel | Public channel where project embeds are posted (normal members can message in the auto-opened thread) |
+| `projects_review_channel` | Channel | **Committee-only** channel where a copy of each submission is posted for voting. Regular members should not have access to this channel. |
+| `mod_log_channel` | Channel | Where project submissions are logged |
+
+---
+
+### `/submit-project`
+
+Submits a project to the showcase. **Available to everyone.** The response is ephemeral (only visible to the person who ran it).
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `built_with` | Choice | No | What the project was built with: `Claude Code`, `Claude Web`, or `Other` |
+| `thumbnail` | Attachment | No | An image to display on the project embed |
+
+After submitting the slash command, a modal opens with the following fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Project Name | Yes | The name of the project (max 100 characters) |
+| Description | Yes | What the project does (max 1000 characters) |
+| GitHub Link | No | URL to the repository (e.g. `https://github.com/...`) |
+
+The **Builder** shown on the embed is always the Discord username of the person who ran the command.
+
+**What happens on submission:**
+1. A project embed (color `#dd7659`) is posted to `projects_channel`
+2. A **public thread** is automatically opened on that message — anyone can chat in it
+3. An identical embed is posted to `projects_review_channel` with **👍 Feature It** and **👎 Pass** vote buttons
+4. The submission is logged to `mod_log_channel` with the project name, description, and submitter
+5. The submitter receives an ephemeral confirmation
+
+---
+
+### Project voting
+
+Votes take place in `projects_review_channel` and are intended for committee members only (access is controlled by Discord channel permissions — the bot does not enforce this itself).
+
+- **Vote duration:** 7 days from the time of submission
+- **Anonymity:** Vote counts are shown on the embed; individual voters are never revealed
+- **Changing votes:** Voters can switch from 👍 to 👎 (or vice versa) at any time before the vote closes. Clicking the same button twice has no effect.
+- **Running totals:** The review embed updates in real time after each vote to show current counts and the remaining time
+- **Vote close:** The bot checks every 5 minutes for expired votes. When a vote closes:
+  - The buttons are disabled and display final counts (e.g. `👍 Feature It (8)`)
+  - The embed title changes to 🏁 and the color shifts to green (majority upvote) or grey (majority downvote or tie)
+  - The final result is permanently visible on the review message
+
+**Vote buttons:**
+
+| Button | Label | Action |
+|--------|-------|--------|
+| 👍 | Feature It | Vote to feature the project on the website |
+| 👎 | Pass | Vote not to feature it |
