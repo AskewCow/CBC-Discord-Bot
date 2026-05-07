@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -6,6 +6,6 @@ module.exports = {
     .setDescription('Submit a project for the showcase'),
 
   async execute(interaction) {
-    await interaction.reply({ content: 'Project submissions coming soon.', ephemeral: true });
+    await interaction.reply({ content: 'Project submissions coming soon.', flags: MessageFlags.Ephemeral });
   },
 };

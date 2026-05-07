@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -6,6 +6,6 @@ module.exports = {
     .setDescription('View the invite leaderboard'),
 
   async execute(interaction) {
-    await interaction.reply({ content: 'Invite leaderboard coming soon.', ephemeral: true });
+    await interaction.reply({ content: 'Invite leaderboard coming soon.', flags: MessageFlags.Ephemeral });
   },
 };

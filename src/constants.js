@@ -6,7 +6,9 @@ const CONFIG_KEYS = {
   PROJECTS_CHANNEL:      'projects_channel',
   EVENTS_CHANNEL:        'events_channel',
   GENERAL_CHANNEL:       'general_channel',
-  HELP_CHANNEL:          'help_channel',
+  TICKET_CHANNEL:        'ticket_channel',
+  // categories
+  TICKET_CATEGORY:       'ticket_category',
   // roles
   ADMIN_ROLE:            'admin_role',
   COMMITTEE_ROLE:        'committee_role',
@@ -21,7 +23,8 @@ const SETUP_CHOICES = [
   { name: 'Projects Channel',      value: 'projects_channel'      },
   { name: 'Events Channel',        value: 'events_channel'        },
   { name: 'General Channel',       value: 'general_channel'       },
-  { name: 'Help Desk Channel',     value: 'help_channel'          },
+  { name: 'Ticket Panel Channel',  value: 'ticket_channel'        },
+  { name: 'Ticket Category',       value: 'ticket_category'       },
   { name: 'Admin Role',            value: 'admin_role'            },
   { name: 'Committee Role',        value: 'committee_role'        },
   { name: 'Moderator Role',        value: 'mod_role'              },
@@ -34,7 +37,11 @@ const CHANNEL_KEYS = new Set([
   'projects_channel',
   'events_channel',
   'general_channel',
-  'help_channel',
+  'ticket_channel',
+]);
+
+const CATEGORY_KEYS = new Set([
+  'ticket_category',
 ]);
 
 const ROLE_KEYS = new Set([
@@ -43,4 +50,4 @@ const ROLE_KEYS = new Set([
   'mod_role',
 ]);
 
-module.exports = { CONFIG_KEYS, SETUP_CHOICES, CHANNEL_KEYS, ROLE_KEYS };
+module.exports = { CONFIG_KEYS, SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS };

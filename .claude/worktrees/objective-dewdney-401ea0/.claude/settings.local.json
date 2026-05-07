@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"C:\\\\Users\\\\Adam\\\\Documents\\\\CBC-Discord-Bot\\\\.claude\\\\worktrees\\\\objective-dewdney-401ea0\\\\data\\\\test.db\")",
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)",
+      "Bash(git push *)",
+      "Bash(gh pr create --title 'Set up Node.js Discord bot scaffold \\(discord.js v14\\)' --body ' *)",
+      "Bash(node -e ' *)",
+      "Bash(npm install *)",
+      "Bash(node scripts/deploy-commands.js)",
+      "Bash(grep -E \"\\\\.\\(js|json|md\\)$\")"
+    ]
+  }
+}

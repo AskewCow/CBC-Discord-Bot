@@ -2,15 +2,16 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits,
   ChannelType,
+  MessageFlags,
 } = require('discord.js');
 const config = require('../../utils/config');
-const { SETUP_CHOICES, CHANNEL_KEYS } = require('../../constants');
+const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setup-remove')
-    .setDescription('Remove a channel or role from a bot setting.')
+    .setDescription('Remove a channel, category, or role from a bot setting.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt
@@ -22,9 +23,16 @@ module.exports = {
     .addChannelOption(opt =>
       opt
         .setName('channel')
-        .setDescription('Channel to remove (for channel settings)')
+        .setDescription('Channel to remove (for text channel settings)')
         .setRequired(false)
         .addChannelTypes(ChannelType.GuildText)
+    )
+    .addChannelOption(opt =>
+      opt
+        .setName('category')
+        .setDescription('Category to remove (for category settings like Ticket Category)')
+        .setRequired(false)
+        .addChannelTypes(ChannelType.GuildCategory)
     )
     .addRoleOption(opt =>
       opt
@@ -34,48 +42,62 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const from    = interaction.options.getString('from');
-    const channel = interaction.options.getChannel('channel');
-    const role    = interaction.options.getRole('role');
+    const from     = interaction.options.getString('from');
+    const channel  = interaction.options.getChannel('channel');
+    const category = interaction.options.getChannel('category');
+    const role     = interaction.options.getRole('role');
 
-    const isChannelType = CHANNEL_KEYS.has(from);
+    const isChannelType  = CHANNEL_KEYS.has(from);
+    const isCategoryType = CATEGORY_KEYS.has(from);
+    const isRoleType     = ROLE_KEYS.has(from);
     const label = SETUP_CHOICES.find(c => c.value === from).name;
 
-    if (!channel && !role) {
+    const typeLabel = isRoleType ? 'role' : isCategoryType ? 'category' : 'channel';
+
+    if (!channel && !category && !role) {
       return interaction.reply({
-        embeds: [errorEmbed('Missing value', `Provide a ${isChannelType ? 'channel' : 'role'} to remove from **${label}**.`)],
-        ephemeral: true,
+        embeds: [errorEmbed('Missing value', `Provide a ${typeLabel} to remove from **${label}**.`)],
+        flags: MessageFlags.Ephemeral,
       });
     }
 
-    // Mismatch guard
-    if (isChannelType && role) {
+    // Mismatch guards
+    if (isChannelType && (category || role)) {
       return interaction.reply({
-        embeds: [errorEmbed('Wrong type', `**${label}** stores channels, not roles.`)],
-        ephemeral: true,
+        embeds: [errorEmbed('Wrong type', `**${label}** stores text channels. Use the \`channel\` option.`)],
+        flags: MessageFlags.Ephemeral,
       });
     }
-    if (!isChannelType && channel) {
+    if (isCategoryType && (channel || role)) {
       return interaction.reply({
-        embeds: [errorEmbed('Wrong type', `**${label}** stores roles, not channels.`)],
-        ephemeral: true,
+        embeds: [errorEmbed('Wrong type', `**${label}** stores categories. Use the \`category\` option.`)],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    if (isRoleType && (channel || category)) {
+      return interaction.reply({
+        embeds: [errorEmbed('Wrong type', `**${label}** stores roles. Use the \`role\` option.`)],
+        flags: MessageFlags.Ephemeral,
       });
     }
 
-    const value   = isChannelType ? channel.id : role.id;
-    const mention = isChannelType ? `<#${value}>` : `<@&${value}>`;
+    let value, mention;
+    if (isRoleType)          { value = role.id;     mention = `<@&${value}>`; }
+    else if (isChannelType)  { value = channel.id;  mention = `<#${value}>`; }
+    else                     { value = category.id; mention = `<#${value}>`; }
+
     const removed = config.removeValue(interaction.guildId, from, value);
 
     if (!removed) {
       return interaction.reply({
         embeds: [errorEmbed('Not found', `${mention} is not in **${label}**.`)],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
     return interaction.reply({
       embeds: [successEmbed('Setting updated', `Removed ${mention} from **${label}**.`)],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   },
 };

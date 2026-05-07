@@ -1,11 +1,27 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const config = require('../../utils/config');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('Open a private help thread'),
+    .setDescription('Find out where to open a support ticket'),
 
   async execute(interaction) {
-    await interaction.reply({ content: 'Help ticket system coming soon.', ephemeral: true });
+    const channelIds = config.getValues(interaction.guildId, 'ticket_channel');
+
+    const description = channelIds.length
+      ? `Head to ${channelIds.map(id => `<#${id}>`).join(' or ')} and use the dropdown menu to open a support ticket.`
+      : 'The ticket system has not been configured yet. Please contact an administrator.';
+
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle('🎫  Need help?')
+          .setDescription(description)
+          .setTimestamp(),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
   },
 };
