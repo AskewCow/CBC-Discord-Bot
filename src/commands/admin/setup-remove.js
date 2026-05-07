@@ -8,6 +8,7 @@ const config = require('../../utils/config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { isAdmin } = require('../../utils/permissions');
+const { buildSetupBoard } = require('../../utils/setupBoard');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -94,13 +95,13 @@ module.exports = {
 
     if (!removed) {
       return interaction.reply({
-        embeds: [errorEmbed('Not found', `${mention} is not in **${label}**.`)],
+        embeds: [errorEmbed('Not found', `${mention} is not in **${label}**.`), buildSetupBoard(interaction.guildId)],
         flags: MessageFlags.Ephemeral,
       });
     }
 
     return interaction.reply({
-      embeds: [successEmbed('Setting updated', `Removed ${mention} from **${label}**.`)],
+      embeds: [successEmbed('Setting updated', `Removed ${mention} from **${label}**.`), buildSetupBoard(interaction.guildId)],
       flags: MessageFlags.Ephemeral,
     });
   },

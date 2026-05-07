@@ -10,13 +10,14 @@
 - [Onboarding](#onboarding)
 - [Tickets](#tickets)
 - [Format Message](#format-message)
+- [Events](#events)
 
 ---
 
 ## Setup
 
 ### `/setup-add`
-Adds a configuration value for the server (channels, categories, roles).
+Adds a configuration value for the server (channels, categories, roles). After every add, a full setup board is shown reflecting the current state.
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -38,11 +39,14 @@ Adds a configuration value for the server (channels, categories, roles).
 | `admin_role` | Role | Full staff access on ticket channels |
 | `committee_role` | Role | Full staff access on ticket channels |
 
-Running the command with no value shows the current entries for that setting.
+Running the command with no value shows the full setup board for the server.
 Multiple values are supported per setting (e.g. several mod roles).
 
 ### `/setup-remove`
-Removes a configuration value. Same options as `/setup-add`.
+Removes a configuration value. Same options as `/setup-add`. After every removal, the full setup board is shown.
+
+### `/setup-view`
+Shows the current server configuration as a setup board. Each setting displays ✅ with its linked values or ❌ if unconfigured. **Admin only.**
 
 ---
 
@@ -248,6 +252,146 @@ Posts a styled message to the current channel. Opens a modal to compose the cont
 **`@everyone` ping behaviour:**
 
 Discord suppresses `@everyone` mentions inside embeds. When `ping_everyone` is `true`, the bot sends a separate plain `@everyone` message immediately after the main message so the ping fires correctly.
+
+---
+
+---
+
+## Events
+
+Events are created by admins or committee members and posted as embeds to the configured `events_channel`. Anyone in the server can register. The bot handles reminders, attendance tracking, and post-event summaries automatically.
+
+### Setup required
+
+| Config key | Type | Purpose |
+|------------|------|---------|
+| `events_channel` | Channel | Where event embeds are posted |
+| `mod_log_channel` | Channel | Where event creation, attendance, and summaries are logged |
+
+---
+
+### `/event-create`
+
+Creates a new event. **Admin or Committee only.**
+
+**Step 1 — slash command parameters:**
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `type` | Choice | Yes | Event type (see below) |
+| `datetime` | String | Yes | Date and time — format: `HH:MM DD-MM-YYYY` (e.g. `14:00 15-06-2026`) |
+| `duration` | Integer | Yes | Duration in minutes |
+| `ping` | Boolean | Yes | Send a separate `@everyone` message after posting the embed |
+| `organizer1` | User | Yes | Primary organiser |
+| `organizer2–5` | User | No | Up to four additional organisers |
+
+**Step 2 — form (modal):** After submitting the slash command, a form opens with:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Event Name | Yes | The name of the event |
+| Location | Yes | Where it takes place |
+| Description | No | Optional description shown on the event embed |
+
+All parameters are validated before the form opens. If the date/time is invalid or in the past, an error is shown immediately.
+
+**Event types and embed colours (Anthropic brand palette):**
+
+| Type | Colour |
+|------|--------|
+| Workshop | Sky `#6A9BCC` |
+| Hackathon | Terracotta `#D97757` |
+| Research Salon | Sage `#788C5D` |
+| Committee Meeting | Sand `#CD9D7D` |
+| Tabling | Mist `#E8E6DC` |
+
+**What happens on creation:**
+- Event embed is posted to `events_channel` with a **Register** button
+- All organisers are automatically registered as participants
+- If `ping` is `true`, `@everyone` is sent as a separate message immediately after
+- Event creation is logged to `mod_log_channel`
+
+---
+
+### `/event-delete`
+
+Cancels and permanently deletes an event. **Admin only.**
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `event` | Autocomplete | Yes | The event to delete (shows upcoming events by name) |
+
+**What happens on deletion:**
+- The event embed in `events_channel` is edited to show a red **Cancelled** notice and the register button is removed
+- Every currently registered participant (not withdrawn) receives a cancellation DM with an apology and the original event details
+- The event and all associated data (registrations, reminders, organizers) are permanently deleted
+- Deletion is logged to `mod_log_channel` with a participant notification count
+
+Only admins can delete events regardless of whether they are the organiser or creator.
+
+---
+
+### Registration flow
+
+**Registering:**
+- Any server member can click the **Register** button on the event embed
+- A confirmation DM is sent containing event details and a red **Withdraw Registration** button
+- The organiser(s) and the person who ran `/event-create` receive a DM with the registrant's username and updated participant total
+- The embed's participant count updates live
+
+**Withdrawing:**
+- Click **Withdraw Registration** in the confirmation DM
+- The organiser(s) and creator are notified with the updated participant total
+- The person can re-register at any time using the original event embed
+
+---
+
+### Automated reminders
+
+The bot checks every 60 seconds and sends DMs to all current participants:
+
+| Trigger | Message |
+|---------|---------|
+| 24 hours before start | "⏰ Reminder: [Event] is tomorrow!" |
+| 1 hour before start | "⏰ Reminder: [Event] is starting in 1 hour!" |
+
+Reminders are tracked in the database and survive bot restarts.
+
+---
+
+### Post-event flow
+
+When an event ends (calculated from `datetime` + `duration`):
+
+1. The **Register** button on the original embed is disabled
+2. Every current participant (excluding organisers) receives a DM asking if they attended (Yes / No buttons)
+3. **Yes** → participant receives the configured follow-up message (see `/event-followup`)
+4. **No** → participant receives a "hope to see you next time" message
+5. Each response is logged to `mod_log_channel` with the event name, organiser(s), user, and answer
+6. A summary embed is DM'd to all organiser(s) and the event creator, and posted to `mod_log_channel`
+
+**Summary includes:**
+- Total unique registrations
+- Total withdrawn (current state)
+- Final participant count
+
+---
+
+### `/event-followup`
+
+Configures the message sent to attendees who click **Yes** after an event ends. **Admin only.**
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `message` | String | No | The follow-up message text |
+| `link_text` | String | No | Hyperlink label (e.g. `Join our newsletter`) |
+| `link_url` | String | No | URL for the hyperlink |
+
+Running with no options shows the current configuration. If no custom message has been set, the default is:
+
+> *Thank you for attending! We hope to see you at our next event.*
+
+The `link_text` and `link_url` options must be provided together — a URL without label text (or vice versa) will not display a link.
 
 ---
 

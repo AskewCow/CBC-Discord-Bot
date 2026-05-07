@@ -2,18 +2,18 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits,
   ChannelType,
-  EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
 const config = require('../../utils/config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { isAdmin } = require('../../utils/permissions');
+const { buildSetupBoard } = require('../../utils/setupBoard');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setup-add')
-    .setDescription('Add a channel, category, or role to a bot setting. Omit value to view current entries.')
+    .setDescription('Add a channel, category, or role to a bot setting.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt
@@ -57,14 +57,10 @@ module.exports = {
     const isRoleType     = ROLE_KEYS.has(type);
     const label = SETUP_CHOICES.find(c => c.value === type).name;
 
-    // No value → show current entries
+    // No value → show the full setup board
     if (!channel && !category && !role) {
-      const values  = config.getValues(interaction.guildId, type);
-      const display = values.length
-        ? values.map(v => (isRoleType ? `<@&${v}>` : `<#${v}>`)).join('\n')
-        : '*Nothing configured yet.*';
       return interaction.reply({
-        embeds: [infoEmbed(`Current: ${label}`, display)],
+        embeds: [buildSetupBoard(interaction.guildId)],
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -90,21 +86,21 @@ module.exports = {
     }
 
     let value, mention;
-    if (isRoleType)     { value = role.id;     mention = `<@&${value}>`; }
+    if (isRoleType)          { value = role.id;     mention = `<@&${value}>`; }
     else if (isChannelType)  { value = channel.id;  mention = `<#${value}>`; }
-    else                { value = category.id; mention = `<#${value}>`; }
+    else                     { value = category.id; mention = `<#${value}>`; }
 
     const added = config.addValue(interaction.guildId, type, value);
 
     if (!added) {
       return interaction.reply({
-        embeds: [errorEmbed('Already added', `${mention} is already in **${label}**.`)],
+        embeds: [errorEmbed('Already added', `${mention} is already in **${label}**.`), buildSetupBoard(interaction.guildId)],
         flags: MessageFlags.Ephemeral,
       });
     }
 
     return interaction.reply({
-      embeds: [successEmbed('Setting updated', `Added ${mention} to **${label}**.`)],
+      embeds: [successEmbed('Setting updated', `Added ${mention} to **${label}**.`), buildSetupBoard(interaction.guildId)],
       flags: MessageFlags.Ephemeral,
     });
   },

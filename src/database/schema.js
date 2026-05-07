@@ -12,16 +12,38 @@ function migrateConfig() {
 function migrateTickets() {
   const cols = db.prepare("PRAGMA table_info(tickets)").all();
   if (cols.length === 0) return;
-  // Old scaffold used thread_id; new schema uses channel_id
   const hasChannelId = cols.some(c => c.name === 'channel_id');
   if (!hasChannelId) {
     db.exec('DROP TABLE IF EXISTS tickets');
   }
 }
 
+function migrateEvents() {
+  const cols = db.prepare("PRAGMA table_info(events)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('type'))             db.exec("ALTER TABLE events ADD COLUMN type TEXT NOT NULL DEFAULT 'workshop'");
+  if (!names.has('duration_minutes')) db.exec('ALTER TABLE events ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 60');
+  if (!names.has('ping'))             db.exec('ALTER TABLE events ADD COLUMN ping INTEGER NOT NULL DEFAULT 0');
+  if (!names.has('event_channel_id')) db.exec('ALTER TABLE events ADD COLUMN event_channel_id TEXT');
+  if (!names.has('guild_id'))         db.exec('ALTER TABLE events ADD COLUMN guild_id TEXT');
+  if (!names.has('description'))         db.exec('ALTER TABLE events ADD COLUMN description TEXT');
+  if (!names.has('ongoing_notified'))    db.exec('ALTER TABLE events ADD COLUMN ongoing_notified INTEGER NOT NULL DEFAULT 0');
+}
+
+function migrateEventRegistrations() {
+  const cols = db.prepare("PRAGMA table_info(event_registrations)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('withdrawn'))    db.exec('ALTER TABLE event_registrations ADD COLUMN withdrawn INTEGER NOT NULL DEFAULT 0');
+  if (!names.has('dm_message_id')) db.exec('ALTER TABLE event_registrations ADD COLUMN dm_message_id TEXT');
+}
+
 function runSchema() {
   migrateConfig();
   migrateTickets();
+  migrateEvents();
+  migrateEventRegistrations();
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS members (
@@ -183,6 +205,38 @@ function runSchema() {
       started_at   INTEGER NOT NULL,
       completed_at INTEGER,
       UNIQUE(discord_id, guild_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS event_organizers (
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      discord_id TEXT NOT NULL,
+      PRIMARY KEY (event_id, discord_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS event_reminders (
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      type     TEXT NOT NULL,
+      sent     INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (event_id, type)
+    );
+
+    CREATE TABLE IF NOT EXISTS event_attendance_sent (
+      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      discord_id TEXT NOT NULL,
+      sent       INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (event_id, discord_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS event_summary_sent (
+      event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+      sent     INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS event_thank_you (
+      guild_id  TEXT PRIMARY KEY,
+      message   TEXT NOT NULL DEFAULT 'Thank you for attending! We hope to see you at our next event.',
+      link_text TEXT,
+      link_url  TEXT
     );
   `);
 }

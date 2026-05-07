@@ -6,6 +6,8 @@ const ticketHandlers       = require('../../utils/ticketHandlers');
 const onboardingModals     = require('../../utils/onboardingModals');
 const onboardingHandlers   = require('../../utils/onboardingHandlers');
 const formatMessage        = require('../../commands/admin/format-message');
+const eventHandlers        = require('../../utils/eventHandlers');
+const eventCreate          = require('../../commands/events/event-create');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -64,6 +66,7 @@ module.exports = {
         if (id.startsWith('onboarding_flow:add_text:')) return onboardingModals.handleFlowAddText(interaction);
         if (id.startsWith('onboarding_flow:add_yn:'))   return onboardingModals.handleFlowAddYesNo(interaction);
         if (id.startsWith('format_message:'))            return formatMessage.handleModal(interaction);
+        if (id === 'event_create')                       return eventCreate.handleModal(interaction);
       } catch (err) {
         logger.error(`Modal error (${id}): ${err.message}`, err);
       }
@@ -91,6 +94,9 @@ module.exports = {
         if (id.startsWith('ticket:close_cancel:'))  return ticketHandlers.handleCloseCancel(interaction);
         if (id.startsWith('ticket:yn:'))              return ticketHandlers.handleYesNo(interaction);
         if (id.startsWith('onboarding:yn:'))          return onboardingHandlers.handleYesNo(interaction);
+        if (id.startsWith('event:register:'))         return eventHandlers.handleRegister(interaction);
+        if (id.startsWith('event:withdraw:'))         return eventHandlers.handleWithdraw(interaction);
+        if (id.startsWith('event:attend:'))           return eventHandlers.handleAttend(interaction);
       } catch (err) {
         logger.error(`Button error (${id}): ${err.message}`, err);
       }
