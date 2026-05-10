@@ -4,6 +4,7 @@
   "description": "TCD Claude Builder Club Discord Bot",
   "main": "index.js",
   "type": "commonjs",
+  "license": "Apache-2.0",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",

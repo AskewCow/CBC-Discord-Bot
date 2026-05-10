@@ -59,7 +59,7 @@ npm run clear-commands
 
 ## License
 
-MIT — you're free to fork this and adapt it for your own community.
+Apache-2.0 — you're free to fork this and adapt it for your own community.
 
 **One condition:** credit must be given wherever this bot or a derivative of it is used. A mention in your README or bot description pointing back to this repo and [@AskewCow](https://github.com/AskewCow) is all that's needed.
 
