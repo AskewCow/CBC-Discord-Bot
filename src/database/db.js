@@ -2,7 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const logger = require('../utils/logger');
 
-const dbPath = path.resolve(process.env.DB_PATH || './data/bot.db');
+const rawPath = process.env.DB_PATH || './data/bot.db';
+const dbPath  = rawPath === ':memory:' ? ':memory:' : path.resolve(rawPath);
 
 const db = new Database(dbPath);
 
