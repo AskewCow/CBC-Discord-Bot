@@ -9,19 +9,19 @@ A Discord bot built for the **Claude Builder Club** at Trinity College Dublin. I
 ## Features
 
 ### Server Administration
-- **Setup system** — Configure channels, categories, and roles the bot uses via `/setup-*` commands
-- **Formatted announcements** — Post styled club messages (announcements, reminders, shoutouts, resources) with `/format-message`
-- **Ticket system** — Create a support panel with custom categories and automated message flows for common questions
+- **Setup system:** Configure channels, categories, and roles the bot uses via `/setup-*` commands
+- **Formatted announcements:** Post styled club messages (announcements, reminders, shoutouts, resources) with `/format-message`
+- **Ticket system:** Create a support panel with custom categories and automated message flows for common questions
 
 ### Events
-- **Event creation** — Post events (workshops, hackathons, research salons, committee meetings, tabling) with registration buttons, auto-generated threads, and optional pings
-- **Event cancellation** — Cancel events and automatically DM all registered participants
-- **Onboarding flows** — Welcome new members with a custom DM or a guided question form on join
+- **Event creation:** Post events (workshops, hackathons, research salons, committee meetings, tabling) with registration buttons, auto-generated threads, and optional pings
+- **Event cancellation:** Cancel events and automatically DM all registered participants
+- **Onboarding flows:** Welcome new members with a custom DM or a guided question form on join
 
 ### Community
-- **Invite tracking** — Track who invited who and surface active invite counts with `/invites`
-- **Invite leaderboard** — Live-updating top 10 leaderboard with toggles for scope and committee inclusion
-- **Project showcase** — Members can submit projects via `/submit-project`; submissions are posted with voting buttons and filtered by tool used
+- **Invite tracking:** Track who invited who and surface active invite counts with `/invites`
+- **Invite leaderboard:** Live-updating top 10 leaderboard with toggles for scope and committee inclusion
+- **Project showcase:** Members can submit projects via `/submit-project`; submissions are posted with voting buttons and filtered by tool used
 
 ### Transparency & Logging
 Every significant action (setup changes, event creation/deletion, project submissions, leaderboard generation) is posted to a configured mod log channel. Member joins, leaves, and invite usage are all tracked in the database.
@@ -43,7 +43,7 @@ npm start
 
 Once the bot is running, use `/setup-add` in your server to point it at your channels and roles.
 
-See the [Wiki — Setup Guide](../../wiki/Setup) for a full walkthrough including required permissions and channel configuration.
+See the [Wiki: Setup Guide](https://github.com/AskewCow/CBC-Discord-Bot/wiki/Commands#%EF%B8%8F-setup) for a full walkthrough including required permissions and channel configuration.
 
 ---
 
@@ -59,10 +59,10 @@ npm run clear-commands
 
 ## License
 
-Apache-2.0 — you're free to fork this and adapt it for your own community.
+Apache-2.0; you're free to fork this and adapt it for your own community.
 
 **One condition:** credit must be given wherever this bot or a derivative of it is used. A mention in your README or bot description pointing back to this repo and [@AskewCow](https://github.com/AskewCow) is all that's needed.
 
 ---
 
-*CBC Discord Bot — Claude Builder Club, Trinity College Dublin*
+*CBC Discord Bot, Claude Builder Club, Trinity College Dublin*
