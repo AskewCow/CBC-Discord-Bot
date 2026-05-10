@@ -30,3 +30,6 @@ desktop.ini
 
 # Claude Code
 .claude/
+
+# Docs (maintained locally; synced to GitHub Wiki manually)
+docs/
