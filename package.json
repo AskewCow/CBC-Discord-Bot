@@ -8,6 +8,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "deploy": "node scripts/deploy-commands.js",
+    "clear-commands": "node scripts/clear-commands.js",
     "test": "node --test tests/unit/embeds.test.js tests/unit/projectUtils.test.js tests/unit/eventHandlers.test.js tests/integration/config.test.js tests/integration/inviteUtils.test.js tests/integration/onboarding.test.js tests/integration/projectVotes.test.js"
   },
   "engines": {
