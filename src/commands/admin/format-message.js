@@ -8,8 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
-const { isAdmin } = require('../../utils/permissions');
-const { errorEmbed } = require('../../utils/embeds');
+const { requireAdmin } = require('../../utils/permissions');
 
 const STYLES = {
   announcement: { label: '📢 Announcement', color: 0x6A9BCC }, // sky
@@ -17,6 +16,9 @@ const STYLES = {
   shoutout:     { label: '🌟 Shoutout',      color: 0xCD9D7D }, // sand
   resource:     { label: '📚 Resource',      color: 0x788C5D }, // sage
 };
+
+const FOOTER_TEXT = 'Claude Builder Club | Trinity College Dublin';
+const FOOTER_ICON = 'https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/claude-color.png';
 
 const COLORS = {
   default:    null,
@@ -74,9 +76,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({ embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')], flags: MessageFlags.Ephemeral });
-    }
+    if (!(await requireAdmin(interaction))) return;
     const style        = interaction.options.getString('style');
     const useEmbed     = interaction.options.getBoolean('embed');
     const colorKey     = interaction.options.getString('color') ?? 'default';
@@ -141,6 +141,10 @@ module.exports = {
       });
     }
 
+    // Acknowledge the modal privately so the posted message stands on its own,
+    // with no reply reference back to the invoking command.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     let linkFragment = '';
     if (linkUrl) {
       linkFragment = linkLabel
@@ -156,18 +160,21 @@ module.exports = {
         .setColor(resolvedColor)
         .setTitle(`${styleInfo.label}: ${title}`)
         .setDescription(body + linkFragment)
-        .setTimestamp()
-        .setFooter({ text: `Posted by ${interaction.user.displayName}` });
+        .setFooter({ text: FOOTER_TEXT, iconURL: FOOTER_ICON });
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.channel.send({ embeds: [embed] });
     } else {
       const header = `**${styleInfo.label}: ${title}**`;
-      await interaction.reply({ content: `${header}\n\n${body}${linkFragment}` });
+      await interaction.channel.send({
+        content: `${header}\n\n${body}${linkFragment}\n\n-# ${FOOTER_TEXT}`,
+      });
     }
 
-    // @everyone must be a separate follow-up — embeds suppress mentions
+    // @everyone must be a separate message — embeds suppress mentions
     if (pingEveryone) {
       await interaction.channel.send({ content: '@everyone' });
     }
+
+    await interaction.editReply({ content: '✅ Message posted.' });
   },
 };

@@ -1,4 +1,5 @@
 const db = require('../database/db');
+const config = require('./config');
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -10,6 +11,9 @@ const {
 } = require('discord.js');
 
 const TICKET_COLOR = 0x5865f2;
+
+// Zero-padded ticket number for display / channel names, e.g. 2 -> "0002"
+const ticketNo = id => String(id).padStart(4, '0');
 
 // ─── DB helpers — panels ──────────────────────────────────────────────────────
 
@@ -173,7 +177,7 @@ function buildPanelMessage(panel, options) {
 function buildWelcomeEmbed(ticketId, opener, topic) {
   return new EmbedBuilder()
     .setColor(TICKET_COLOR)
-    .setTitle(`🎫  Ticket #${String(ticketId).padStart(4, '0')}`)
+    .setTitle(`🎫  Ticket #${ticketNo(ticketId)}`)
     .setDescription(
       `Hey ${opener.toString()}! Your ticket has been received.\n\n` +
       `Please describe your issue in as much detail as possible, and a staff member will be with you shortly.`
@@ -193,8 +197,65 @@ function buildCloseButton(ticketId) {
   );
 }
 
-function buildFlowEmbed(content) {
-  return new EmbedBuilder().setColor(TICKET_COLOR).setDescription(content);
+// Ephemeral confirm/cancel prompt shown before a ticket is actually closed.
+// Shared by the "Close Ticket" button and the /ticket-close command. Returns a
+// message payload fragment — spread it into interaction.reply().
+function buildClosePrompt(ticketId) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle('Close this ticket?')
+        .setDescription('A copy of the transcript will be sent to the person who opened this ticket, then this channel will be permanently deleted. This cannot be undone.')
+        .setTimestamp(),
+    ],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ticket:close_confirm:${ticketId}`)
+          .setLabel('Confirm Close')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('🔒'),
+        new ButtonBuilder()
+          .setCustomId(`ticket:close_cancel:${ticketId}`)
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ],
+  };
+}
+
+// Flow-text placeholders. Each {token} in a flow step is replaced with a live
+// mention of the matching configured channel/role, or a plain-word fallback
+// when that setting is unset. Unknown {tokens} are left untouched.
+const FLOW_PLACEHOLDERS = {
+  faq:           { key: 'faq_channel',           type: 'channel', fallback: 'FAQ' },
+  announcements: { key: 'announcements_channel', type: 'channel', fallback: 'announcements' },
+  events:        { key: 'events_channel',        type: 'channel', fallback: 'events' },
+  general:       { key: 'general_channel',       type: 'channel', fallback: 'general' },
+  projects:      { key: 'projects_channel',      type: 'channel', fallback: 'projects' },
+  'mod-log':     { key: 'mod_log_channel',       type: 'channel', fallback: 'mod-log' },
+  admin:         { key: 'admin_role',            type: 'role',    fallback: '@admins' },
+  committee:     { key: 'committee_role',        type: 'role',    fallback: '@committee' },
+  member:        { key: 'member_role',           type: 'role',    fallback: '@members' },
+};
+
+function renderFlowContent(content, guildId) {
+  if (!content) return content;
+  return content.replace(/\{([a-z-]+)\}/gi, (match, rawToken) => {
+    const def = FLOW_PLACEHOLDERS[rawToken.toLowerCase()];
+    if (!def) return match;
+    const ids = guildId ? config.getValues(guildId, def.key) : [];
+    if (!ids.length) return def.fallback;
+    const wrap = def.type === 'role' ? id => `<@&${id}>` : id => `<#${id}>`;
+    return ids.map(wrap).join(' ');
+  });
+}
+
+function buildFlowEmbed(content, guildId) {
+  return new EmbedBuilder()
+    .setColor(TICKET_COLOR)
+    .setDescription(renderFlowContent(content, guildId));
 }
 
 function buildYesNoRow(ticketId, stepId) {
@@ -208,7 +269,7 @@ function buildYesNoRow(ticketId, stepId) {
       .setCustomId(`ticket:yn:no:${ticketId}:${stepId}`)
       .setLabel('No')
       .setStyle(ButtonStyle.Danger)
-      .setEmoji('❌')
+      .setEmoji('✖️')
   );
 }
 
@@ -224,7 +285,7 @@ function buildDisabledYesNoRow(chosen) {
       .setCustomId('ticket:yn:done_no')
       .setLabel('No')
       .setStyle(chosen === 'no' ? ButtonStyle.Danger : ButtonStyle.Secondary)
-      .setEmoji('❌')
+      .setEmoji('✖️')
       .setDisabled(true)
   );
 }
@@ -247,7 +308,7 @@ async function createTicketChannel(guild, opener, topic, panelId, optionId) {
     .run('__pending__', opener.id, guild.id, 'open', topic || 'Other', panelId || null, optionId || null, now);
 
   const ticketId    = result.lastInsertRowid;
-  const channelName = `ticket-${String(ticketId).padStart(4, '0')}`;
+  const channelName = `ticket-${ticketNo(ticketId)}`;
 
   const staffAllow = [
     PermissionFlagsBits.ViewChannel,
@@ -335,11 +396,15 @@ module.exports = {
   getOpenTicketByOpener,
   setTicketPendingStep,
   closeTicket,
+  ticketNo,
   // builders
   buildPanelMessage,
   buildWelcomeEmbed,
   buildCloseButton,
+  buildClosePrompt,
   buildFlowEmbed,
+  renderFlowContent,
+  FLOW_PLACEHOLDERS,
   buildYesNoRow,
   buildDisabledYesNoRow,
   // channel ops

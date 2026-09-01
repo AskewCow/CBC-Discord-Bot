@@ -11,7 +11,7 @@ const db = require('../../database/db');
 const config = require('../../utils/config');
 const { CONFIG_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
-const { isCommittee } = require('../../utils/permissions');
+const { requireCommittee } = require('../../utils/permissions');
 const {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
@@ -67,12 +67,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!isCommittee(interaction.member)) {
-      return interaction.reply({
-        embeds: [errorEmbed('Access denied', 'This command is restricted to admins and committee members.')],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    if (!(await requireCommittee(interaction))) return;
 
     const type     = interaction.options.getString('type');
     const datetime = interaction.options.getString('datetime');

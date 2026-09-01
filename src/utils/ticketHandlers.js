@@ -1,7 +1,10 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { EmbedBuilder, MessageFlags } = require('discord.js');
 const { errorEmbed } = require('./embeds');
+const logger = require('./logger');
 const ticketUtil = require('./ticket');
 const { runFlow, resumeAfterYesNo } = require('./ticketFlow');
+const { generateTranscript } = require('./ticketTranscript');
+const { logToModLog } = require('./eventHandlers');
 const { isMod } = require('./permissions');
 
 // ─── Select menu: user opens a ticket ────────────────────────────────────────
@@ -96,27 +99,8 @@ async function handleClose(interaction) {
     return interaction.reply({ embeds: [errorEmbed('Permission denied', 'Only the ticket opener or staff can close this ticket.')], flags: MessageFlags.Ephemeral });
   }
 
-  const confirmRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`ticket:close_confirm:${ticketId}`)
-      .setLabel('Confirm Close')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🔒'),
-    new ButtonBuilder()
-      .setCustomId(`ticket:close_cancel:${ticketId}`)
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary)
-  );
-
   return interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0xed4245)
-        .setTitle('Close this ticket?')
-        .setDescription('The ticket channel will be permanently deleted. This cannot be undone.')
-        .setTimestamp(),
-    ],
-    components: [confirmRow],
+    ...ticketUtil.buildClosePrompt(ticketId),
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -131,25 +115,34 @@ async function handleCloseConfirm(interaction) {
     return interaction.update({ embeds: [errorEmbed('Already closed', 'This ticket has already been closed.')], components: [] });
   }
 
-  ticketUtil.closeTicket(ticketId);
-
   await interaction.update({
     embeds: [
       new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle('Closing ticket…')
-        .setDescription('This channel will be deleted shortly.')
+        .setDescription('Saving the transcript. This channel will be deleted shortly.')
         .setTimestamp(),
     ],
     components: [],
   });
 
-  // Log to mod-log channel if configured
-  await _logClose(interaction, ticket);
+  // Capture the transcript while the channel still exists
+  let transcript = null;
+  try {
+    transcript = await generateTranscript(interaction.channel, ticket, interaction.user);
+  } catch (err) {
+    logger.warn(`Ticket #${ticketId}: transcript generation failed — ${err.message}`);
+  }
+
+  ticketUtil.closeTicket(ticketId);
+
+  // Send a copy to the opener's DMs, and log to the mod-log channel
+  await _dmOpenerTranscript(interaction, ticket, transcript);
+  await _logClose(interaction, ticket, transcript ? [transcript] : []);
 
   // Delete the channel after a brief delay so users can see the closing message
   setTimeout(() => {
-    interaction.channel.delete(`Ticket #${String(ticketId).padStart(4, '0')} closed by ${interaction.user.tag ?? interaction.user.username}`).catch(() => {});
+    interaction.channel.delete(`Ticket #${ticketUtil.ticketNo(ticketId)} closed by ${interaction.user.tag ?? interaction.user.username}`).catch(() => {});
   }, 3000);
 }
 
@@ -196,31 +189,35 @@ async function handleYesNo(interaction) {
   await resumeAfterYesNo(interaction, ticket, stepId, choice);
 }
 
-// ─── Internal: post close log ─────────────────────────────────────────────────
+// ─── Internal: DM a transcript copy to the member who opened the ticket ───────
 
-async function _logClose(interaction, ticket) {
-  const cfg        = require('./config');
-  const logIds     = cfg.getValues(interaction.guildId, 'mod_log_channel');
-  if (!logIds.length) return;
-
+async function _dmOpenerTranscript(interaction, ticket, transcript) {
+  if (!transcript) return;
   try {
-    const logChannel = await interaction.guild.channels.fetch(logIds[0]);
-    await logChannel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xed4245)
-          .setTitle(`🔒  Ticket #${String(ticket.id).padStart(4, '0')} closed`)
-          .addFields(
-            { name: 'Opener',   value: `<@${ticket.opener_id}>`, inline: true },
-            { name: 'Category', value: ticket.topic || 'Other',  inline: true },
-            { name: 'Closed by', value: `<@${interaction.user.id}>`, inline: true }
-          )
-          .setTimestamp(),
-      ],
+    const opener = await interaction.client.users.fetch(ticket.opener_id);
+    await opener.send({
+      content: `Here is a copy of your ticket transcript (#${ticketUtil.ticketNo(ticket.id)} — ${ticket.topic || 'Other'}).`,
+      files: [transcript],
     });
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    logger.warn(`Ticket #${ticket.id}: could not DM transcript to opener — ${err.message}`);
   }
+}
+
+// ─── Internal: post close log (embed + transcript) to the mod-log channel ─────
+
+async function _logClose(interaction, ticket, files = []) {
+  const embed = new EmbedBuilder()
+    .setColor(0xed4245)
+    .setTitle(`🔒  Ticket #${ticketUtil.ticketNo(ticket.id)} closed`)
+    .addFields(
+      { name: 'Opener',   value: `<@${ticket.opener_id}>`, inline: true },
+      { name: 'Category', value: ticket.topic || 'Other',  inline: true },
+      { name: 'Closed by', value: `<@${interaction.user.id}>`, inline: true }
+    )
+    .setTimestamp();
+
+  await logToModLog(interaction.client, interaction.guildId, embed, files);
 }
 
 module.exports = {

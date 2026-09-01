@@ -17,6 +17,9 @@ const { logToModLog } = require('../../utils/eventHandlers');
 // Keyed by userId; holds built_with + thumbnail URL until modal submits
 const pendingSubmissions = new Map();
 
+// Matches https://github.com/<owner>/<repo> (with optional www and trailing path)
+const GITHUB_REPO_RE = /^https:\/\/(www\.)?github\.com\/[^/\s]+\/[^/\s]+/i;
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('submit-project')
@@ -25,10 +28,11 @@ module.exports = {
       opt
         .setName('built_with')
         .setDescription('What did you build this with?')
-        .setRequired(false)
+        .setRequired(true)
         .addChoices(
           { name: 'Claude Code', value: 'claude_code' },
           { name: 'Claude Web',  value: 'claude_web'  },
+          { name: 'Claude API',  value: 'claude_api'  },
           { name: 'Other',       value: 'other'       },
         )
     )
@@ -40,7 +44,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const builtWith  = interaction.options.getString('built_with') ?? 'none';
+    const builtWith  = interaction.options.getString('built_with');
     const attachment = interaction.options.getAttachment('thumbnail');
     const thumbUrl   = attachment?.proxyURL ?? '';
 
@@ -62,19 +66,20 @@ module.exports = {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('description')
-          .setLabel('Description')
+          .setLabel('Description (200 characters max)')
           .setStyle(TextInputStyle.Paragraph)
-          .setMaxLength(1000)
+          .setMaxLength(200)
+          .setPlaceholder('A short summary of what your project does.')
           .setRequired(true),
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('github_url')
-          .setLabel('GitHub Link (optional)')
+          .setLabel('GitHub Repository')
           .setStyle(TextInputStyle.Short)
           .setMaxLength(200)
-          .setPlaceholder('https://github.com/...')
-          .setRequired(false),
+          .setPlaceholder('https://github.com/your-name/your-repo')
+          .setRequired(true),
       ),
     );
 
@@ -89,8 +94,21 @@ module.exports = {
 
     const name        = interaction.fields.getTextInputValue('project_name').trim();
     const description = interaction.fields.getTextInputValue('description').trim();
-    const githubUrl   = interaction.fields.getTextInputValue('github_url').trim() || null;
+    const githubUrl   = interaction.fields.getTextInputValue('github_url').trim();
     const { builtWith, thumbUrl } = pending;
+
+    // Discord enforces the modal's 200-char cap, but guard server-side too.
+    if (description.length > 200) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Description too long', `Keep it under 200 characters — yours was ${description.length}.`)],
+      });
+    }
+
+    if (!GITHUB_REPO_RE.test(githubUrl)) {
+      return interaction.editReply({
+        embeds: [errorEmbed('Invalid GitHub link', 'Enter a public GitHub repository URL, e.g. `https://github.com/your-name/your-repo`.')],
+      });
+    }
 
     const guildId      = interaction.guildId;
     const now          = Math.floor(Date.now() / 1000);

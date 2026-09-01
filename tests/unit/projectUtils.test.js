@@ -217,9 +217,10 @@ describe('buildVoteRow', () => {
 });
 
 describe('BUILT_WITH_LABELS', () => {
-  test('has entries for all three options', () => {
+  test('has entries for all built-with options', () => {
     assert.equal(BUILT_WITH_LABELS.claude_code, 'Claude Code');
     assert.equal(BUILT_WITH_LABELS.claude_web, 'Claude Web');
+    assert.equal(BUILT_WITH_LABELS.claude_api, 'Claude API');
     assert.equal(BUILT_WITH_LABELS.other, 'Other');
   });
 });

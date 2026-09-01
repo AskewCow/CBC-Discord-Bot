@@ -8,7 +8,7 @@ const {
 const config = require('../../utils/config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
-const { isAdmin } = require('../../utils/permissions');
+const { requireAdmin } = require('../../utils/permissions');
 const { buildSetupBoard } = require('../../utils/setupBoard');
 const { logToModLog } = require('../../utils/eventHandlers');
 
@@ -46,9 +46,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({ embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')], flags: MessageFlags.Ephemeral });
-    }
+    if (!(await requireAdmin(interaction))) return;
     const type     = interaction.options.getString('type');
     const channel  = interaction.options.getChannel('channel');
     const category = interaction.options.getChannel('category');

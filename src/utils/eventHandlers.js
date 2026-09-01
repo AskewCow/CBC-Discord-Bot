@@ -192,12 +192,12 @@ async function notifyOrganizers(client, event, userTag, totalCount, action) {
   }
 }
 
-async function logToModLog(client, guildId, embed) {
+async function logToModLog(client, guildId, embed, files = []) {
   const channelIds = config.getValues(guildId, CONFIG_KEYS.MOD_LOG_CHANNEL);
   if (!channelIds.length) return;
   const channel = await client.channels.fetch(channelIds[0]).catch(() => null);
   if (!channel) return;
-  await channel.send({ embeds: [embed] }).catch(err =>
+  await channel.send({ embeds: [embed], files }).catch(err =>
     logger.warn(`Could not post to mod log: ${err.message}`)
   );
 }

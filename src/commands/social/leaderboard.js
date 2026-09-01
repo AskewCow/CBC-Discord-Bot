@@ -2,12 +2,10 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   PermissionFlagsBits,
-  MessageFlags,
 } = require('discord.js');
-const { isAdmin }                 = require('../../utils/permissions');
+const { requireAdmin }            = require('../../utils/permissions');
 const { getLeaderboard, createLeaderboard } = require('../../utils/inviteUtils');
 const { logToModLog }             = require('../../utils/eventHandlers');
-const { errorEmbed }              = require('../../utils/embeds');
 const { CONFIG_KEYS }             = require('../../constants');
 const config                      = require('../../utils/config');
 
@@ -34,12 +32,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({
-        embeds: [errorEmbed('Access Denied', 'This command is restricted to admins.')],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    if (!(await requireAdmin(interaction))) return;
 
     await interaction.deferReply();
 

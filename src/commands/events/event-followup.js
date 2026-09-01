@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../../database/db');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
-const { isAdmin } = require('../../utils/permissions');
+const { requireAdmin } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,12 +18,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({
-        embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    if (!(await requireAdmin(interaction))) return;
 
     const message  = interaction.options.getString('message');
     const linkText = interaction.options.getString('link_text');

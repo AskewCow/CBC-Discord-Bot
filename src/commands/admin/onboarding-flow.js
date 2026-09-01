@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const onb = require('../../utils/onboarding');
-const { isAdmin } = require('../../utils/permissions');
+const { requireAdmin } = require('../../utils/permissions');
 
 const STEP_TYPE_CHOICES = [
   { name: 'Text — ask a free-form question, collect their reply', value: 'text'   },
@@ -62,9 +62,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({ embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')], flags: MessageFlags.Ephemeral });
-    }
+    if (!(await requireAdmin(interaction))) return;
     const sub = interaction.options.getSubcommand();
 
     // ── set-welcome ────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 const db = require('../../database/db');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
-const { isAdmin } = require('../../utils/permissions');
+const { requireAdmin } = require('../../utils/permissions');
 const {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
@@ -48,12 +48,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({
-        embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    if (!(await requireAdmin(interaction))) return;
 
     const eventId = parseInt(interaction.options.getString('event'));
     const event   = db.prepare('SELECT * FROM events WHERE id = ? AND guild_id = ?').get(eventId, interaction.guildId);

@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
-const { isAdmin } = require('../../utils/permissions');
+const { requireAdmin } = require('../../utils/permissions');
 
 const STEP_TYPE_CHOICES = [
   { name: 'Message — send a plain message in the ticket', value: 'message' },
@@ -99,9 +99,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!isAdmin(interaction.member)) {
-      return interaction.reply({ embeds: [errorEmbed('Access denied', 'This command is restricted to admins.')], flags: MessageFlags.Ephemeral });
-    }
+    if (!(await requireAdmin(interaction))) return;
     const sub = interaction.options.getSubcommand();
 
     // ── add ────────────────────────────────────────────────────────────────────
@@ -127,7 +125,7 @@ module.exports = {
                 .setCustomId('content')
                 .setLabel('Message Content')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('This message will be sent automatically in the ticket channel…')
+                .setPlaceholder('Auto-sent in the ticket. {faq} {announcements} {events} {general} {projects} {admin} auto-link')
                 .setMaxLength(1500)
                 .setRequired(true)
             )
@@ -146,7 +144,7 @@ module.exports = {
                 .setCustomId('question')
                 .setLabel('Question')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('e.g. Do you have a screenshot of the error?')
+                .setPlaceholder('e.g. Did you read the {faq}?  {faq} {events} {general} {admin} {committee} auto-link to config')
                 .setMaxLength(500)
                 .setRequired(true)
             ),
@@ -200,17 +198,19 @@ module.exports = {
         });
       }
 
+      const render = (text) => ticketUtil.renderFlowContent(text, interaction.guildId);
+
       const lines = steps.map((step, i) => {
         const num   = `**Step ${i + 1}**`;
         const badge = step.step_type === 'yes_no' ? '❓ Yes/No' : '💬 Message';
 
         if (step.step_type === 'message') {
-          return `${num} [${badge}]\n> ${step.content.replace(/\n/g, '\n> ')}`;
+          return `${num} [${badge}]\n> ${render(step.content).replace(/\n/g, '\n> ')}`;
         }
 
-        let parts = `${num} [${badge}]\n> ${step.content.replace(/\n/g, '\n> ')}`;
-        if (step.yes_content) parts += `\n> ✅ **Yes →** ${step.yes_content.replace(/\n/g, ' ')}`;
-        if (step.no_content)  parts += `\n> ❌ **No →** ${step.no_content.replace(/\n/g, ' ')}`;
+        let parts = `${num} [${badge}]\n> ${render(step.content).replace(/\n/g, '\n> ')}`;
+        if (step.yes_content) parts += `\n> ✅ **Yes →** ${render(step.yes_content).replace(/\n/g, ' ')}`;
+        if (step.no_content)  parts += `\n> ❌ **No →** ${render(step.no_content).replace(/\n/g, ' ')}`;
         return parts;
       });
 

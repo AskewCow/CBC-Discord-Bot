@@ -25,7 +25,7 @@ async function resumeAfterYesNo(interaction, ticket, stepId, choice) {
   // Send the choice-specific follow-up if configured
   const followUp = choice === 'yes' ? step.yes_content : step.no_content;
   if (followUp) {
-    await interaction.channel.send({ embeds: [buildFlowEmbed(followUp)] });
+    await interaction.channel.send({ embeds: [buildFlowEmbed(followUp, interaction.guildId)] });
   }
 
   // Continue with any remaining steps after this one
@@ -40,10 +40,10 @@ async function resumeAfterYesNo(interaction, ticket, stepId, choice) {
 async function _runSteps(channel, ticket, steps) {
   for (const step of steps) {
     if (step.step_type === 'message') {
-      await channel.send({ embeds: [buildFlowEmbed(step.content)] });
+      await channel.send({ embeds: [buildFlowEmbed(step.content, channel.guildId)] });
     } else if (step.step_type === 'yes_no') {
       await channel.send({
-        embeds: [buildFlowEmbed(step.content)],
+        embeds: [buildFlowEmbed(step.content, channel.guildId)],
         components: [buildYesNoRow(ticket.id, step.id)],
       });
       setTicketPendingStep(ticket.id, step.id);

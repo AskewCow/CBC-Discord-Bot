@@ -3,6 +3,7 @@ const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('
 const BUILT_WITH_LABELS = {
   claude_code: 'Claude Code',
   claude_web:  'Claude Web',
+  claude_api:  'Claude API',
   other:       'Other',
 };
 
