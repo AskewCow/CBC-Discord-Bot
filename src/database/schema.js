@@ -1,5 +1,12 @@
 const db = require('./db');
 
+// This file owns the bot's *internal* SQLite tables only: config, invite
+// tracking, tickets, onboarding, and the per-guild post-event message.
+//
+// The shared "public subgraph" (members, projects, project_votes, events and
+// their dependent tables, announcements) now lives in Postgres and is managed
+// by the website repo's migrations — see src/database/pg.js.
+
 function migrateInvites() {
   const cols = db.prepare("PRAGMA table_info(invites)").all();
   if (cols.length === 0) return;
@@ -12,13 +19,6 @@ function migrateInviteLeaderboards() {
   if (cols.length === 0) return;
   const names = new Set(cols.map(c => c.name));
   if (!names.has('scope')) db.exec("ALTER TABLE invite_leaderboards ADD COLUMN scope TEXT NOT NULL DEFAULT 'all_time'");
-}
-
-function migrateMembers() {
-  const cols = db.prepare("PRAGMA table_info(members)").all();
-  if (cols.length === 0) return;
-  const names = new Set(cols.map(c => c.name));
-  if (!names.has('left_at')) db.exec('ALTER TABLE members ADD COLUMN left_at INTEGER');
 }
 
 function migrateConfig() {
@@ -39,125 +39,18 @@ function migrateTickets() {
   }
 }
 
-function migrateEvents() {
-  const cols = db.prepare("PRAGMA table_info(events)").all();
-  if (cols.length === 0) return;
-  const names = new Set(cols.map(c => c.name));
-  if (!names.has('type'))             db.exec("ALTER TABLE events ADD COLUMN type TEXT NOT NULL DEFAULT 'workshop'");
-  if (!names.has('duration_minutes')) db.exec('ALTER TABLE events ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 60');
-  if (!names.has('ping'))             db.exec('ALTER TABLE events ADD COLUMN ping INTEGER NOT NULL DEFAULT 0');
-  if (!names.has('event_channel_id')) db.exec('ALTER TABLE events ADD COLUMN event_channel_id TEXT');
-  if (!names.has('guild_id'))         db.exec('ALTER TABLE events ADD COLUMN guild_id TEXT');
-  if (!names.has('description'))         db.exec('ALTER TABLE events ADD COLUMN description TEXT');
-  if (!names.has('ongoing_notified'))    db.exec('ALTER TABLE events ADD COLUMN ongoing_notified INTEGER NOT NULL DEFAULT 0');
-}
-
-function migrateProjects() {
-  const cols = db.prepare("PRAGMA table_info(projects)").all();
-  if (cols.length === 0) return;
-  const names = new Set(cols.map(c => c.name));
-  if (!names.has('thumbnail_url'))      db.exec("ALTER TABLE projects ADD COLUMN thumbnail_url TEXT");
-  if (!names.has('built_with'))         db.exec("ALTER TABLE projects ADD COLUMN built_with TEXT");
-  if (!names.has('guild_id'))           db.exec("ALTER TABLE projects ADD COLUMN guild_id TEXT");
-  if (!names.has('thread_id'))          db.exec("ALTER TABLE projects ADD COLUMN thread_id TEXT");
-  if (!names.has('review_message_id'))  db.exec("ALTER TABLE projects ADD COLUMN review_message_id TEXT");
-  if (!names.has('vote_ends_at'))       db.exec("ALTER TABLE projects ADD COLUMN vote_ends_at INTEGER");
-  if (!names.has('vote_closed'))        db.exec("ALTER TABLE projects ADD COLUMN vote_closed INTEGER NOT NULL DEFAULT 0");
-  if (!names.has('submitter_tag'))      db.exec("ALTER TABLE projects ADD COLUMN submitter_tag TEXT");
-}
-
-function migrateEventRegistrations() {
-  const cols = db.prepare("PRAGMA table_info(event_registrations)").all();
-  if (cols.length === 0) return;
-  const names = new Set(cols.map(c => c.name));
-  if (!names.has('withdrawn'))    db.exec('ALTER TABLE event_registrations ADD COLUMN withdrawn INTEGER NOT NULL DEFAULT 0');
-  if (!names.has('dm_message_id')) db.exec('ALTER TABLE event_registrations ADD COLUMN dm_message_id TEXT');
-}
-
 function runSchema() {
   migrateInvites();
   migrateInviteLeaderboards();
-  migrateMembers();
   migrateConfig();
   migrateTickets();
-  migrateEvents();
-  migrateEventRegistrations();
-  migrateProjects();
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS members (
-      discord_id   TEXT PRIMARY KEY,
-      username     TEXT NOT NULL,
-      joined_at    INTEGER NOT NULL,
-      onboarded_at INTEGER,
-      invite_code  TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS announcements (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      title      TEXT NOT NULL,
-      body       TEXT NOT NULL,
-      author_id  TEXT NOT NULL,
-      channel_id TEXT NOT NULL,
-      message_id TEXT,
-      posted_at  INTEGER NOT NULL,
-      pinned     INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS events (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      name         TEXT NOT NULL,
-      description  TEXT,
-      location     TEXT,
-      starts_at    INTEGER NOT NULL,
-      ends_at      INTEGER,
-      created_by   TEXT NOT NULL,
-      message_id   TEXT,
-      checkin_form TEXT,
-      created_at   INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS event_registrations (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-      discord_id    TEXT NOT NULL,
-      registered_at INTEGER NOT NULL,
-      attended      INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(event_id, discord_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS projects (
-      id                INTEGER PRIMARY KEY AUTOINCREMENT,
-      name              TEXT NOT NULL,
-      description       TEXT NOT NULL,
-      github_url        TEXT,
-      builder_name      TEXT NOT NULL,
-      submitted_by      TEXT NOT NULL,
-      submitter_tag     TEXT,
-      submitted_at      INTEGER NOT NULL,
-      approved          INTEGER NOT NULL DEFAULT 0,
-      message_id        TEXT,
-      thumbnail_url     TEXT,
-      built_with        TEXT,
-      guild_id          TEXT,
-      thread_id         TEXT,
-      review_message_id TEXT,
-      vote_ends_at      INTEGER,
-      vote_closed       INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS project_votes (
-      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      discord_id TEXT NOT NULL,
-      vote       TEXT NOT NULL CHECK(vote IN ('up', 'down')),
-      voted_at   INTEGER NOT NULL,
-      PRIMARY KEY (project_id, discord_id)
-    );
-
     CREATE TABLE IF NOT EXISTS invites (
       code         TEXT PRIMARY KEY,
       inviter_id   TEXT NOT NULL,
       uses         INTEGER NOT NULL DEFAULT 0,
+      guild_id     TEXT NOT NULL DEFAULT '',
       created_at   INTEGER NOT NULL,
       last_used_at INTEGER
     );
@@ -262,38 +155,6 @@ function runSchema() {
       UNIQUE(discord_id, guild_id)
     );
 
-    CREATE TABLE IF NOT EXISTS event_organizers (
-      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-      discord_id TEXT NOT NULL,
-      PRIMARY KEY (event_id, discord_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS event_reminders (
-      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-      type     TEXT NOT NULL,
-      sent     INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (event_id, type)
-    );
-
-    CREATE TABLE IF NOT EXISTS event_attendance_sent (
-      event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-      discord_id TEXT NOT NULL,
-      sent       INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (event_id, discord_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS event_summary_sent (
-      event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
-      sent     INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS event_thank_you (
-      guild_id  TEXT PRIMARY KEY,
-      message   TEXT NOT NULL DEFAULT 'Thank you for attending! We hope to see you at our next event.',
-      link_text TEXT,
-      link_url  TEXT
-    );
-
     CREATE TABLE IF NOT EXISTS invite_leaderboards (
       id                INTEGER PRIMARY KEY AUTOINCREMENT,
       guild_id          TEXT NOT NULL,
@@ -302,6 +163,13 @@ function runSchema() {
       scope             TEXT NOT NULL DEFAULT 'all_time',
       started_at        INTEGER NOT NULL,
       include_committee INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS event_thank_you (
+      guild_id  TEXT PRIMARY KEY,
+      message   TEXT NOT NULL DEFAULT 'Thank you for attending! We hope to see you at our next event.',
+      link_text TEXT,
+      link_url  TEXT
     );
   `);
 }

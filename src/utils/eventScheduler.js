@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const db = require('../database/db');
+const pg = require('../database/pg');
 const logger = require('./logger');
 const {
   EVENT_COLORS,
@@ -27,21 +27,49 @@ async function tick() {
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
 
+// Compare two epoch-second timestamps by calendar day in the club's timezone.
+function isSameDay(aSeconds, bSeconds) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Dublin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return fmt.format(new Date(aSeconds * 1000)) === fmt.format(new Date(bSeconds * 1000));
+}
+
+async function markReminderSent(eventId, type) {
+  await pg.query(
+    'UPDATE event_reminders SET sent = true WHERE event_id = $1 AND type = $2',
+    [eventId, type],
+  );
+}
+
 async function sendReminders(now) {
-  const pending = db.prepare(`
-    SELECT e.*, er.type AS reminder_type
-    FROM events e
-    JOIN event_reminders er ON er.event_id = e.id
-    WHERE er.sent = 0
-      AND e.starts_at > ?
-      AND (
-        (er.type = '1day'  AND e.starts_at - ? <= 86400)
-        OR
-        (er.type = '1hour' AND e.starts_at - ? <= 3600)
-      )
-  `).all(now, now, now);
+  const pending = await pg.all(
+    `SELECT e.*, er.type AS reminder_type
+       FROM events e
+       JOIN event_reminders er ON er.event_id = e.id
+      WHERE er.sent = false
+        AND e.starts_at > $1
+        AND (
+          (er.type = '1day'  AND e.starts_at - $1 <= 86400)
+          OR
+          (er.type = '1hour' AND e.starts_at - $1 <= 3600)
+        )`,
+    [now],
+  );
 
   for (const reminder of pending) {
+    // The "tomorrow" reminder is misleading for an event that actually starts
+    // today (created same-day, or the bot was offline until <24h out). Drop it
+    // silently — the 1-hour reminder still fires — and mark it done.
+    if (reminder.reminder_type === '1day' && isSameDay(reminder.starts_at, now)) {
+      await markReminderSent(reminder.id, '1day');
+      logger.info(`Skipped "tomorrow" reminder for event ${reminder.id} (${reminder.name}) — it starts today`);
+      continue;
+    }
+
     const title = reminder.reminder_type === '1day'
       ? `⏰⠀Reminder: ${reminder.name} is tomorrow!`
       : `⏰⠀Reminder: ${reminder.name} is starting in 1 hour!`;
@@ -57,9 +85,10 @@ async function sendReminders(now) {
       .setFooter({ text: 'CBC Events' })
       .setTimestamp();
 
-    const participants = db.prepare(
-      'SELECT discord_id FROM event_registrations WHERE event_id = ? AND withdrawn = 0'
-    ).all(reminder.id);
+    const participants = await pg.all(
+      'SELECT discord_id FROM event_registrations WHERE event_id = $1 AND withdrawn = false',
+      [reminder.id],
+    );
 
     for (const p of participants) {
       try {
@@ -70,8 +99,10 @@ async function sendReminders(now) {
       }
     }
 
-    db.prepare('UPDATE event_reminders SET sent = 1 WHERE event_id = ? AND type = ?')
-      .run(reminder.id, reminder.reminder_type);
+    await pg.query(
+      'UPDATE event_reminders SET sent = true WHERE event_id = $1 AND type = $2',
+      [reminder.id, reminder.reminder_type],
+    );
     logger.info(`Sent ${reminder.reminder_type} reminder for event ${reminder.id} (${reminder.name})`);
   }
 }
@@ -79,18 +110,19 @@ async function sendReminders(now) {
 // ── Ongoing event embed update ────────────────────────────────────────────────
 
 async function handleOngoingEvents(now) {
-  const ongoing = db.prepare(`
-    SELECT * FROM events
-    WHERE starts_at <= ?
-      AND (starts_at + duration_minutes * 60) > ?
-      AND ongoing_notified = 0
-  `).all(now, now);
+  const ongoing = await pg.all(
+    `SELECT * FROM events
+      WHERE starts_at <= $1
+        AND (starts_at + duration_minutes * 60) > $1
+        AND ongoing_notified = false`,
+    [now],
+  );
 
   for (const event of ongoing) {
     await updateEventEmbed(_client, event, false).catch(err =>
       logger.warn(`Could not update ongoing embed for event ${event.id}: ${err.message}`)
     );
-    db.prepare('UPDATE events SET ongoing_notified = 1 WHERE id = ?').run(event.id);
+    await pg.query('UPDATE events SET ongoing_notified = true WHERE id = $1', [event.id]);
     logger.info(`Marked event ${event.id} (${event.name}) as ongoing`);
   }
 }
@@ -98,13 +130,14 @@ async function handleOngoingEvents(now) {
 // ── Post-event flow ───────────────────────────────────────────────────────────
 
 async function handleEndedEvents(now) {
-  const ended = db.prepare(`
-    SELECT e.*
-    FROM events e
-    LEFT JOIN event_summary_sent ess ON ess.event_id = e.id
-    WHERE (e.starts_at + e.duration_minutes * 60) <= ?
-      AND (ess.sent IS NULL OR ess.sent = 0)
-  `).all(now);
+  const ended = await pg.all(
+    `SELECT e.*
+       FROM events e
+       LEFT JOIN event_summary_sent ess ON ess.event_id = e.id
+      WHERE (e.starts_at + e.duration_minutes * 60) <= $1
+        AND (ess.sent IS NULL OR ess.sent = false)`,
+    [now],
+  );
 
   for (const event of ended) {
     try {
@@ -121,10 +154,11 @@ async function processEndedEvent(event) {
   // Disable Register button on original embed
   await updateEventEmbed(_client, event, true);
 
-  const allRegistrations   = db.prepare('SELECT * FROM event_registrations WHERE event_id = ?').all(event.id);
-  const activeParticipants = allRegistrations.filter(r => r.withdrawn === 0);
-  const organizers         = db.prepare('SELECT discord_id FROM event_organizers WHERE event_id = ?')
-    .all(event.id).map(r => r.discord_id);
+  const allRegistrations   = await pg.all('SELECT * FROM event_registrations WHERE event_id = $1', [event.id]);
+  const activeParticipants = allRegistrations.filter(r => !r.withdrawn);
+  const organizers         = (await pg.all(
+    'SELECT discord_id FROM event_organizers WHERE event_id = $1', [event.id],
+  )).map(r => r.discord_id);
   const organizerSet = new Set(organizers);
 
   // Send attendance check DMs to non-organizer participants only
@@ -136,17 +170,20 @@ async function processEndedEvent(event) {
     .setTimestamp();
 
   for (const reg of activeParticipants.filter(r => !organizerSet.has(r.discord_id))) {
-    const alreadySent = db.prepare(
-      'SELECT sent FROM event_attendance_sent WHERE event_id = ? AND discord_id = ?'
-    ).get(event.id, reg.discord_id);
+    const alreadySent = await pg.get(
+      'SELECT sent FROM event_attendance_sent WHERE event_id = $1 AND discord_id = $2',
+      [event.id, reg.discord_id],
+    );
     if (alreadySent?.sent) continue;
 
     try {
       const user = await _client.users.fetch(reg.discord_id);
       await user.send({ embeds: [attendEmbed], components: [buildAttendanceRow(event.id)] });
-      db.prepare(
-        'INSERT OR REPLACE INTO event_attendance_sent (event_id, discord_id, sent) VALUES (?, ?, 1)'
-      ).run(event.id, reg.discord_id);
+      await pg.query(
+        `INSERT INTO event_attendance_sent (event_id, discord_id, sent) VALUES ($1, $2, true)
+         ON CONFLICT (event_id, discord_id) DO UPDATE SET sent = true`,
+        [event.id, reg.discord_id],
+      );
     } catch (err) {
       logger.warn(`Could not send attendance DM to ${reg.discord_id}: ${err.message}`);
     }
@@ -154,7 +191,7 @@ async function processEndedEvent(event) {
 
   // Build and send summary
   const totalRegistered = allRegistrations.length;
-  const totalWithdrawn  = allRegistrations.filter(r => r.withdrawn === 1).length;
+  const totalWithdrawn  = allRegistrations.filter(r => r.withdrawn).length;
   const totalActive     = activeParticipants.length;
   const organizerMentions = organizers.map(id => `<@${id}>`).join(', ') || 'N/A';
 
@@ -184,7 +221,11 @@ async function processEndedEvent(event) {
     await logToModLog(_client, event.guild_id, summaryEmbed);
   }
 
-  db.prepare('INSERT OR REPLACE INTO event_summary_sent (event_id, sent) VALUES (?, 1)').run(event.id);
+  await pg.query(
+    `INSERT INTO event_summary_sent (event_id, sent) VALUES ($1, true)
+     ON CONFLICT (event_id) DO UPDATE SET sent = true`,
+    [event.id],
+  );
   logger.info(`Completed post-event flow for event ${event.id} (${event.name})`);
 }
 

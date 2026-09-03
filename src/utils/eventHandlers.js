@@ -5,10 +5,12 @@ const {
   ButtonStyle,
   MessageFlags,
 } = require('discord.js');
-const db = require('../database/db');
+const db = require('../database/db');   // SQLite — event_thank_you only
+const pg = require('../database/pg');   // Postgres — events + registrations + organizers
 const logger = require('./logger');
 const config = require('./config');
 const { CONFIG_KEYS } = require('../constants');
+const { revalidateWebsite } = require('./websiteRevalidate');
 
 // ── Anthropic brand colours per event type ────────────────────────────────────
 const EVENT_COLORS = {
@@ -36,6 +38,26 @@ function formatDuration(minutes) {
   const hStr = `${h} hour${h !== 1 ? 's' : ''}`;
   if (m === 0) return hStr;
   return `${hStr} ${m} minute${m !== 1 ? 's' : ''}`;
+}
+
+// Keep the website's denormalised counters on the events row in step with the
+// registration rows.
+async function recountEvent(eventId) {
+  const { rows } = await pg.query(
+    `UPDATE events e SET
+       registered_count = c.reg,
+       attended_count   = c.att
+     FROM (
+       SELECT
+         count(*) FILTER (WHERE withdrawn = false) AS reg,
+         count(*) FILTER (WHERE attended  = true)  AS att
+       FROM event_registrations WHERE event_id = $1
+     ) c
+     WHERE e.id = $1
+     RETURNING e.registered_count AS registered, e.attended_count AS attended`,
+    [eventId],
+  );
+  return rows[0] ?? { registered: 0, attended: 0 };
 }
 
 function buildEventEmbed(event, organizers, participantCount, ended = false) {
@@ -142,15 +164,17 @@ function buildRegistrationDMEmbed(event, organizers) {
     .setTimestamp();
 }
 
-async function updateEventEmbed(client, event, ended = false) {
+async function updateEventEmbed(client, event, ended = false, opts = {}) {
   try {
     if (!event.event_channel_id || !event.message_id) return;
 
-    const organizers = db.prepare('SELECT discord_id FROM event_organizers WHERE event_id = ?')
-      .all(event.id).map(r => r.discord_id);
-    const { cnt } = db.prepare(
-      'SELECT COUNT(*) AS cnt FROM event_registrations WHERE event_id = ? AND withdrawn = 0'
-    ).get(event.id);
+    const organizers = opts.organizers ?? (await pg.all(
+      'SELECT discord_id FROM event_organizers WHERE event_id = $1', [event.id],
+    )).map(r => r.discord_id);
+    const cnt = opts.participantCount ?? (await pg.get(
+      'SELECT count(*)::int AS cnt FROM event_registrations WHERE event_id = $1 AND withdrawn = false',
+      [event.id],
+    )).cnt;
 
     const channel = await client.channels.fetch(event.event_channel_id).catch(() => null);
     if (!channel) return;
@@ -166,10 +190,11 @@ async function updateEventEmbed(client, event, ended = false) {
   }
 }
 
-async function notifyOrganizers(client, event, userTag, totalCount, action) {
-  const organizers = db.prepare('SELECT discord_id FROM event_organizers WHERE event_id = ?')
-    .all(event.id).map(r => r.discord_id);
-  const notifyIds = [...new Set([...organizers, event.created_by])];
+async function notifyOrganizers(client, event, userTag, totalCount, action, organizers) {
+  const orgs = organizers ?? (await pg.all(
+    'SELECT discord_id FROM event_organizers WHERE event_id = $1', [event.id],
+  )).map(r => r.discord_id);
+  const notifyIds = [...new Set([...orgs, event.created_by])];
 
   const registered = action === 'registered';
   const embed = new EmbedBuilder()
@@ -209,7 +234,7 @@ async function handleRegister(interaction) {
   const userId  = interaction.user.id;
   const now     = Math.floor(Date.now() / 1000);
 
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  const event = await pg.get('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!event) {
     return interaction.reply({ content: 'This event no longer exists.', flags: MessageFlags.Ephemeral });
   }
@@ -218,11 +243,12 @@ async function handleRegister(interaction) {
     return interaction.reply({ content: 'This event has already ended.', flags: MessageFlags.Ephemeral });
   }
 
-  const existing = db.prepare(
-    'SELECT * FROM event_registrations WHERE event_id = ? AND discord_id = ?'
-  ).get(eventId, userId);
+  const existing = await pg.get(
+    'SELECT * FROM event_registrations WHERE event_id = $1 AND discord_id = $2',
+    [eventId, userId],
+  );
 
-  if (existing && existing.withdrawn === 0) {
+  if (existing && !existing.withdrawn) {
     return interaction.reply({
       content: "You're already registered! Check your DMs to manage your registration.",
       flags: MessageFlags.Ephemeral,
@@ -231,22 +257,23 @@ async function handleRegister(interaction) {
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const organizers = db.prepare('SELECT discord_id FROM event_organizers WHERE event_id = ?')
-    .all(eventId).map(r => r.discord_id);
+  const organizers = (await pg.all(
+    'SELECT discord_id FROM event_organizers WHERE event_id = $1', [eventId],
+  )).map(r => r.discord_id);
 
   if (existing) {
-    db.prepare(
-      'UPDATE event_registrations SET withdrawn = 0, registered_at = ?, dm_message_id = NULL WHERE event_id = ? AND discord_id = ?'
-    ).run(now, eventId, userId);
+    await pg.query(
+      'UPDATE event_registrations SET withdrawn = false, registered_at = $1, dm_message_id = NULL WHERE event_id = $2 AND discord_id = $3',
+      [now, eventId, userId],
+    );
   } else {
-    db.prepare(
-      'INSERT INTO event_registrations (event_id, discord_id, registered_at, attended, withdrawn) VALUES (?, ?, ?, 0, 0)'
-    ).run(eventId, userId, now);
+    await pg.query(
+      'INSERT INTO event_registrations (event_id, discord_id, registered_at, attended, withdrawn) VALUES ($1, $2, $3, false, false)',
+      [eventId, userId, now],
+    );
   }
 
-  const { cnt } = db.prepare(
-    'SELECT COUNT(*) AS cnt FROM event_registrations WHERE event_id = ? AND withdrawn = 0'
-  ).get(eventId);
+  const { registered: cnt } = await recountEvent(eventId);
 
   // Send DM confirmation
   let dmMessageId = null;
@@ -261,17 +288,19 @@ async function handleRegister(interaction) {
   }
 
   if (dmMessageId) {
-    db.prepare(
-      'UPDATE event_registrations SET dm_message_id = ? WHERE event_id = ? AND discord_id = ?'
-    ).run(dmMessageId, eventId, userId);
+    await pg.query(
+      'UPDATE event_registrations SET dm_message_id = $1 WHERE event_id = $2 AND discord_id = $3',
+      [dmMessageId, eventId, userId],
+    );
   }
 
-  await updateEventEmbed(interaction.client, event);
+  await updateEventEmbed(interaction.client, event, false, { organizers, participantCount: cnt });
   await notifyOrganizers(
     interaction.client, event,
     `<@${userId}> (${interaction.user.tag})`,
-    cnt, 'registered'
+    cnt, 'registered', organizers
   );
+  revalidateWebsite(['events']).catch(() => {});
 
   await interaction.editReply({
     content: dmMessageId
@@ -284,7 +313,7 @@ async function handleWithdraw(interaction) {
   const eventId = parseInt(interaction.customId.split(':')[2]);
   const userId  = interaction.user.id;
 
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  const event = await pg.get('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!event) {
     return interaction.update({
       embeds:     [new EmbedBuilder().setColor(0xed4245).setTitle('❌⠀Event not found.')],
@@ -292,11 +321,12 @@ async function handleWithdraw(interaction) {
     });
   }
 
-  const registration = db.prepare(
-    'SELECT * FROM event_registrations WHERE event_id = ? AND discord_id = ?'
-  ).get(eventId, userId);
+  const registration = await pg.get(
+    'SELECT * FROM event_registrations WHERE event_id = $1 AND discord_id = $2',
+    [eventId, userId],
+  );
 
-  if (!registration || registration.withdrawn === 1) {
+  if (!registration || registration.withdrawn) {
     return interaction.update({
       embeds: [new EmbedBuilder()
         .setColor(0xed4245)
@@ -307,13 +337,12 @@ async function handleWithdraw(interaction) {
     });
   }
 
-  db.prepare(
-    'UPDATE event_registrations SET withdrawn = 1 WHERE event_id = ? AND discord_id = ?'
-  ).run(eventId, userId);
+  await pg.query(
+    'UPDATE event_registrations SET withdrawn = true WHERE event_id = $1 AND discord_id = $2',
+    [eventId, userId],
+  );
 
-  const { cnt } = db.prepare(
-    'SELECT COUNT(*) AS cnt FROM event_registrations WHERE event_id = ? AND withdrawn = 0'
-  ).get(eventId);
+  const { registered: cnt } = await recountEvent(eventId);
 
   await interaction.update({
     embeds: [new EmbedBuilder()
@@ -325,12 +354,13 @@ async function handleWithdraw(interaction) {
     components: [],
   });
 
-  await updateEventEmbed(interaction.client, event);
+  await updateEventEmbed(interaction.client, event, false, { participantCount: cnt });
   await notifyOrganizers(
     interaction.client, event,
     `<@${userId}> (${interaction.user.tag})`,
     cnt, 'withdrew'
   );
+  revalidateWebsite(['events']).catch(() => {});
 }
 
 async function handleAttend(interaction) {
@@ -339,7 +369,7 @@ async function handleAttend(interaction) {
   const eventId = parseInt(parts[3]);
   const userId  = interaction.user.id;
 
-  const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  const event = await pg.get('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!event) {
     return interaction.update({
       embeds:     [new EmbedBuilder().setColor(0xed4245).setTitle('❌⠀Event not found.')],
@@ -348,9 +378,12 @@ async function handleAttend(interaction) {
   }
 
   if (answer === 'yes') {
-    db.prepare(
-      'UPDATE event_registrations SET attended = 1 WHERE event_id = ? AND discord_id = ?'
-    ).run(eventId, userId);
+    await pg.query(
+      'UPDATE event_registrations SET attended = true WHERE event_id = $1 AND discord_id = $2',
+      [eventId, userId],
+    );
+    await recountEvent(eventId);
+    revalidateWebsite(['events']).catch(() => {});
   }
 
   const thankYou = db.prepare('SELECT * FROM event_thank_you WHERE guild_id = ?').get(event.guild_id);
@@ -380,8 +413,9 @@ async function handleAttend(interaction) {
   await interaction.update({ embeds: [responseEmbed], components: [] });
 
   // Log attendance to mod log
-  const organizers = db.prepare('SELECT discord_id FROM event_organizers WHERE event_id = ?')
-    .all(eventId).map(r => r.discord_id);
+  const organizers = (await pg.all(
+    'SELECT discord_id FROM event_organizers WHERE event_id = $1', [eventId],
+  )).map(r => r.discord_id);
 
   const logEmbed = new EmbedBuilder()
     .setColor(answer === 'yes' ? 0x57f287 : 0xed4245)
@@ -401,6 +435,7 @@ module.exports = {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
   formatDuration,
+  recountEvent,
   buildEventEmbed,
   buildCancelledEmbed,
   buildRegisterRow,

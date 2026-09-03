@@ -100,6 +100,13 @@ module.exports = {
       });
     }
 
+    // The website's ambassador/committee sidebar is derived from these roles.
+    if (from === 'ambassador_role' || from === 'committee_role') {
+      require('../../utils/roster')
+        .syncRoster(interaction.guild)
+        .catch(() => {});
+    }
+
     const logEmbed = new EmbedBuilder()
       .setColor(0xed4245)
       .setTitle('⚙️⠀Setup Updated — Removed')

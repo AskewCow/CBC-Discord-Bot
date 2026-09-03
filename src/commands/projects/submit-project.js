@@ -7,7 +7,7 @@ const {
   ActionRowBuilder,
 } = require('discord.js');
 const { EmbedBuilder } = require('discord.js');
-const db     = require('../../database/db');
+const pg     = require('../../database/pg');
 const config = require('../../utils/config');
 const logger = require('../../utils/logger');
 const { errorEmbed, successEmbed } = require('../../utils/embeds');
@@ -19,6 +19,10 @@ const pendingSubmissions = new Map();
 
 // Matches https://github.com/<owner>/<repo> (with optional www and trailing path)
 const GITHUB_REPO_RE = /^https:\/\/(www\.)?github\.com\/[^/\s]+\/[^/\s]+/i;
+
+// One submission per user per this window. Enforced from the projects table
+// (persistent across bot restarts) against the caller's most recent submission.
+const SUBMIT_COOLDOWN_SECONDS = 4 * 60 * 60;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -44,6 +48,23 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    // Cooldown: reject if this user submitted within the window.
+    const nowSec = Math.floor(Date.now() / 1000);
+    const last = await pg.get(
+      'SELECT max(submitted_at) AS ts FROM projects WHERE submitted_by = $1',
+      [interaction.user.id],
+    );
+    if (last?.ts && nowSec - last.ts < SUBMIT_COOLDOWN_SECONDS) {
+      const readyAt = last.ts + SUBMIT_COOLDOWN_SECONDS;
+      return interaction.reply({
+        embeds: [errorEmbed(
+          'Slow down',
+          `You can submit another project <t:${readyAt}:R>. One submission every 4 hours keeps the review queue manageable.`,
+        )],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
     const builtWith  = interaction.options.getString('built_with');
     const attachment = interaction.options.getAttachment('thumbnail');
     const thumbUrl   = attachment?.proxyURL ?? '';
@@ -130,18 +151,20 @@ module.exports = {
     }
 
     // Insert project row first to get the ID
-    const result = db.prepare(`
-      INSERT INTO projects
-        (name, description, github_url, builder_name, submitted_by, submitter_tag,
-         submitted_at, thumbnail_url, built_with, guild_id, vote_ends_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      name, description, githubUrl, submitterTag,
-      interaction.user.id, submitterTag, now,
-      thumbUrl || null, builtWith, guildId, voteEndsAt,
+    const { rows: [inserted] } = await pg.query(
+      `INSERT INTO projects
+         (name, description, github_url, builder_name, submitted_by, submitter_tag,
+          submitted_at, thumbnail_url, built_with, guild_id, vote_ends_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id`,
+      [
+        name, description, githubUrl, submitterTag,
+        interaction.user.id, submitterTag, now,
+        thumbUrl || null, builtWith, guildId, voteEndsAt,
+      ],
     );
 
-    const projectId = result.lastInsertRowid;
+    const projectId = inserted.id;
 
     const projectData = {
       id: projectId, name, description,
@@ -170,11 +193,12 @@ module.exports = {
         components: [buildVoteRow(projectId)],
       });
 
-      db.prepare(`
-        UPDATE projects
-        SET message_id = ?, thread_id = ?, review_message_id = ?
-        WHERE id = ?
-      `).run(publicMsg.id, thread.id, reviewMsg.id, projectId);
+      await pg.query(
+        `UPDATE projects
+            SET message_id = $1, thread_id = $2, review_message_id = $3
+          WHERE id = $4`,
+        [publicMsg.id, thread.id, reviewMsg.id, projectId],
+      );
 
       // ── Mod log ──────────────────────────────────────────────────────────────
       const logEmbed = new EmbedBuilder()
@@ -198,7 +222,7 @@ module.exports = {
       });
     } catch (err) {
       logger.error(`Failed to post project ${projectId}: ${err.message}`, err);
-      db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+      await pg.query('DELETE FROM projects WHERE id = $1', [projectId]).catch(() => {});
       return interaction.editReply({
         embeds: [errorEmbed('Submission Failed', 'Could not post your project. Please try again or contact an admin.')],
       });

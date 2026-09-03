@@ -9,6 +9,9 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { requireAdmin } = require('../../utils/permissions');
+const pg = require('../../database/pg');
+const logger = require('../../utils/logger');
+const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 
 const STYLES = {
   announcement: { label: '📢 Announcement', color: 0x6A9BCC }, // sky
@@ -134,9 +137,9 @@ module.exports = {
     const linkLabel = interaction.fields.getTextInputValue('msg_link_label').trim();
     const linkUrl   = interaction.fields.getTextInputValue('msg_link_url').trim();
 
-    if (linkUrl && !/^https?:\/\//i.test(linkUrl)) {
+    if (linkUrl && !/^https:\/\//i.test(linkUrl)) {
       return interaction.reply({
-        content: 'Invalid URL — must start with `http://` or `https://`.',
+        content: 'Invalid URL — must start with `https://`.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -155,6 +158,7 @@ module.exports = {
     const styleInfo      = STYLES[style];
     const resolvedColor  = COLORS[colorKey] ?? styleInfo.color;
 
+    let posted;
     if (useEmbed) {
       const embed = new EmbedBuilder()
         .setColor(resolvedColor)
@@ -162,10 +166,10 @@ module.exports = {
         .setDescription(body + linkFragment)
         .setFooter({ text: FOOTER_TEXT, iconURL: FOOTER_ICON });
 
-      await interaction.channel.send({ embeds: [embed] });
+      posted = await interaction.channel.send({ embeds: [embed] });
     } else {
       const header = `**${styleInfo.label}: ${title}**`;
-      await interaction.channel.send({
+      posted = await interaction.channel.send({
         content: `${header}\n\n${body}${linkFragment}\n\n-# ${FOOTER_TEXT}`,
       });
     }
@@ -173,6 +177,33 @@ module.exports = {
     // @everyone must be a separate message — embeds suppress mentions
     if (pingEveryone) {
       await interaction.channel.send({ content: '@everyone' });
+    }
+
+    // Only the "announcement" style is mirrored to the website feed. The body
+    // stored is the raw markdown the admin typed (plus any link), not the
+    // decorated Discord version.
+    if (style === 'announcement') {
+      try {
+        await pg.query(
+          `INSERT INTO announcements (title, body, author_id, author_tag, channel_id, message_id, posted_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            title,
+            body + linkFragment,
+            interaction.user.id,
+            // Server display name (nickname → global name → username): the club
+            // asks members to /nick to their real name, so this is what the
+            // website shows as "posted by".
+            interaction.member?.displayName ?? interaction.user.username,
+            interaction.channelId,
+            posted.id,
+            Math.floor(Date.now() / 1000),
+          ],
+        );
+        revalidateWebsite(['announcements']).catch(() => {});
+      } catch (err) {
+        logger.error(`Could not persist announcement to Postgres: ${err.message}`, err);
+      }
     }
 
     await interaction.editReply({ content: '✅ Message posted.' });

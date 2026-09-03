@@ -1,8 +1,10 @@
 const { Events } = require('discord.js');
-const db             = require('../../database/db');
+const db             = require('../../database/db');   // SQLite — invites
+const pg             = require('../../database/pg');   // Postgres — members
 const logger         = require('../../utils/logger');
 const eventScheduler   = require('../../utils/eventScheduler');
 const projectScheduler = require('../../utils/projectScheduler');
+const { syncRoster }   = require('../../utils/roster');
 
 const upsertInvite = db.prepare(`
   INSERT INTO invites (code, inviter_id, uses, guild_id, created_at)
@@ -11,9 +13,6 @@ const upsertInvite = db.prepare(`
     uses     = MAX(uses, excluded.uses),
     guild_id = CASE WHEN guild_id = '' THEN excluded.guild_id ELSE guild_id END
 `);
-
-const markLeft    = db.prepare('UPDATE members SET left_at = ? WHERE discord_id = ?');
-const getPresentMembers = db.prepare("SELECT discord_id FROM members WHERE left_at IS NULL");
 
 async function cacheGuildInvites(client) {
   client.inviteCache = new Map();
@@ -48,16 +47,17 @@ async function cacheGuildInvites(client) {
 async function reconcileDepartedMembers(guild) {
   try {
     const guildMembers = await guild.members.fetch();
-    const currentIds   = new Set(guildMembers.keys());
-    const dbPresent    = getPresentMembers.all();
+    const currentIds   = [...guildMembers.keys()];
+    const now = Math.floor(Date.now() / 1000);
 
-    const now = Date.now();
-    const reconcile = db.transaction(() => {
-      for (const { discord_id } of dbPresent) {
-        if (!currentIds.has(discord_id)) markLeft.run(now, discord_id);
-      }
-    });
-    reconcile();
+    // Mark anyone still flagged present in the DB who is no longer in the guild.
+    await pg.query(
+      `UPDATE members
+          SET left_at = $1
+        WHERE left_at IS NULL
+          AND discord_id <> ALL($2::text[])`,
+      [now, currentIds],
+    );
 
     logger.debug(`Reconciled departed members for guild ${guild.id}`);
   } catch (err) {
@@ -70,7 +70,23 @@ module.exports = {
   once: true,
   async execute(client) {
     logger.info(`Bot ready: ${client.user.tag}`);
+
+    try {
+      await pg.ping();
+      logger.info('Postgres (shared public data) connected');
+    } catch (err) {
+      logger.error(`Postgres unreachable at startup — member/project/event/announcement features will fail until it is back: ${err.message}`);
+    }
+
     await cacheGuildInvites(client);
+
+    // Rebuild the public ambassador/committee roster from current role membership.
+    for (const guild of client.guilds.cache.values()) {
+      await syncRoster(guild).catch((err) =>
+        logger.warn(`Initial roster sync failed for guild ${guild.id}: ${err.message}`),
+      );
+    }
+
     eventScheduler.start(client);
     projectScheduler.start(client);
   },

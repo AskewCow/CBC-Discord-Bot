@@ -19,7 +19,7 @@ module.exports = {
     const target  = interaction.options.getUser('user') ?? interaction.user;
     const guildId = interaction.guild.id;
 
-    const count  = getUserInviteCount(guildId, target.id);
+    const count  = await getUserInviteCount(guildId, target.id);
     const isSelf = target.id === interaction.user.id;
     const noun   = count === 1 ? 'invite' : 'invites';
 

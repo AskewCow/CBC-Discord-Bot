@@ -4,9 +4,10 @@ const {
   PermissionFlagsBits,
   MessageFlags,
 } = require('discord.js');
-const db = require('../../database/db');
+const pg = require('../../database/pg');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { requireAdmin } = require('../../utils/permissions');
+const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
@@ -33,12 +34,13 @@ module.exports = {
     const now = Math.floor(Date.now() / 1000);
 
     // List non-ended events for this guild, newest first
-    const events = db.prepare(`
-      SELECT id, name FROM events
-      WHERE guild_id = ? AND (starts_at + duration_minutes * 60) > ?
-      ORDER BY starts_at ASC
-      LIMIT 25
-    `).all(interaction.guildId, now);
+    const events = await pg.all(
+      `SELECT id, name FROM events
+        WHERE guild_id = $1 AND (starts_at + duration_minutes * 60) > $2
+        ORDER BY starts_at ASC
+        LIMIT 25`,
+      [interaction.guildId, now],
+    );
 
     const filtered = focused
       ? events.filter(e => e.name.toLowerCase().includes(focused))
@@ -51,7 +53,7 @@ module.exports = {
     if (!(await requireAdmin(interaction))) return;
 
     const eventId = parseInt(interaction.options.getString('event'));
-    const event   = db.prepare('SELECT * FROM events WHERE id = ? AND guild_id = ?').get(eventId, interaction.guildId);
+    const event   = await pg.get('SELECT * FROM events WHERE id = $1 AND guild_id = $2', [eventId, interaction.guildId]);
 
     if (!event) {
       return interaction.reply({
@@ -62,12 +64,12 @@ module.exports = {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const organizers = db.prepare('SELECT discord_id FROM event_organizers WHERE event_id = ?')
-      .all(eventId).map(r => r.discord_id);
+    const organizers = (await pg.all('SELECT discord_id FROM event_organizers WHERE event_id = $1', [eventId]))
+      .map(r => r.discord_id);
 
-    const participants = db.prepare(
-      'SELECT discord_id FROM event_registrations WHERE event_id = ? AND withdrawn = 0'
-    ).all(eventId).map(r => r.discord_id);
+    const participants = (await pg.all(
+      'SELECT discord_id FROM event_registrations WHERE event_id = $1 AND withdrawn = false', [eventId],
+    )).map(r => r.discord_id);
 
     // Edit the event embed in #events to show cancellation
     if (event.event_channel_id && event.message_id) {
@@ -124,7 +126,8 @@ module.exports = {
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 
     // Delete the event (cascade removes registrations, organizers, reminders, etc.)
-    db.prepare('DELETE FROM events WHERE id = ?').run(eventId);
+    await pg.query('DELETE FROM events WHERE id = $1', [eventId]);
+    revalidateWebsite(['events']).catch(() => {});
 
     await interaction.editReply({
       embeds: [successEmbed(

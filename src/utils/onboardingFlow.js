@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const db       = require('../database/db');
+const pg       = require('../database/pg');
 const cfg      = require('./config');
 const logger   = require('./logger');
 const onb      = require('./onboarding');
@@ -35,7 +35,7 @@ async function startOnboardingFlow(member, guild) {
   }
 
   if (flow.flow_type === 'welcome') {
-    _markOnboarded(member.id);
+    await _markOnboarded(member.id);
     await _assignMemberRole(member.id, guild);
     return;
   }
@@ -147,7 +147,7 @@ async function resumeAfterText(message, session) {
 
 async function _completeFlow(dmChannel, session, guild) {
   onb.completeSession(session.id);
-  _markOnboarded(session.discord_id);
+  await _markOnboarded(session.discord_id);
 
   await dmChannel.send({
     embeds: [
@@ -226,9 +226,10 @@ async function _assignMemberRole(discordId, guild) {
   }
 }
 
-function _markOnboarded(discordId) {
+async function _markOnboarded(discordId) {
   const now = Math.floor(Date.now() / 1000);
-  db.prepare('UPDATE members SET onboarded_at = ? WHERE discord_id = ?').run(now, discordId);
+  await pg.query('UPDATE members SET onboarded_at = $1 WHERE discord_id = $2', [now, discordId])
+    .catch(err => logger.warn(`Could not mark ${discordId} onboarded: ${err.message}`));
 }
 
 module.exports = { startOnboardingFlow, resumeAfterYesNo, resumeAfterText };

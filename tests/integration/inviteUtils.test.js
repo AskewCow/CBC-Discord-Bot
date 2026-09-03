@@ -1,9 +1,9 @@
 'use strict';
 
-process.env.DB_PATH = ':memory:';
-process.env.NODE_ENV = 'test';
+// members lives in Postgres; invites / invite_leaderboards stay in SQLite.
+const { pg, initSchema, resetTables, closePg } = require('../helpers/pgTest');
 
-const { describe, test, before } = require('node:test');
+const { describe, test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { runSchema } = require('../../src/database/schema');
@@ -16,131 +16,128 @@ const {
   getActiveLeaderboards,
 } = require('../../src/utils/inviteUtils');
 
-before(() => {
+before(async () => {
+  await initSchema();
+  await resetTables();
   runSchema();
-  runSchema(); // second pass adds left_at to members and guild_id to invites
+  db.exec('DELETE FROM invites; DELETE FROM invite_leaderboards;');
 });
+after(closePg);
 
 const GUILD = 'guild_invite';
 const NOW   = Math.floor(Date.now() / 1000);
 
-function addInvite(code, inviterId) {
+function addInvite(code, inviterId, guildId = GUILD) {
   db.prepare(`
     INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id)
     VALUES (?, ?, 0, ?, ?)
-  `).run(code, inviterId, NOW, GUILD);
+  `).run(code, inviterId, NOW, guildId);
 }
 
-function addMember(discordId, username, inviteCode, leftAt = null, joinedAt = null) {
-  db.prepare(`
-    INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code, left_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(discordId, username, joinedAt ?? NOW, inviteCode, leftAt);
+async function addMember(discordId, username, inviteCode, leftAt = null, joinedAt = null) {
+  await pg.query(
+    `INSERT INTO members (discord_id, username, joined_at, invite_code, left_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (discord_id) DO NOTHING`,
+    [discordId, username, joinedAt ?? NOW, inviteCode, leftAt],
+  );
 }
 
 describe('getUserInviteCount', () => {
-  test('returns 0 when user has no tracked invitees', () => {
-    assert.equal(getUserInviteCount(GUILD, 'nobody'), 0);
+  test('returns 0 when user has no tracked invitees', async () => {
+    assert.equal(await getUserInviteCount(GUILD, 'nobody'), 0);
   });
 
-  test('counts active (non-departed) invitees', () => {
+  test('counts active (non-departed) invitees', async () => {
     addInvite('code_a', 'inviter_a');
-    addMember('member_a1', 'Alice', 'code_a');
-    addMember('member_a2', 'Bob',   'code_a');
-    assert.equal(getUserInviteCount(GUILD, 'inviter_a'), 2);
+    await addMember('member_a1', 'Alice', 'code_a');
+    await addMember('member_a2', 'Bob',   'code_a');
+    assert.equal(await getUserInviteCount(GUILD, 'inviter_a'), 2);
   });
 
-  test('excludes departed members (left_at set)', () => {
+  test('excludes departed members (left_at set)', async () => {
     addInvite('code_b', 'inviter_b');
-    addMember('member_b1', 'Charlie', 'code_b');
-    addMember('member_b2', 'Dave',    'code_b', NOW - 3600); // left
-    assert.equal(getUserInviteCount(GUILD, 'inviter_b'), 1);
+    await addMember('member_b1', 'Charlie', 'code_b');
+    await addMember('member_b2', 'Dave',    'code_b', NOW - 3600); // left
+    assert.equal(await getUserInviteCount(GUILD, 'inviter_b'), 1);
   });
 
-  test('returns 0 after all invitees have departed', () => {
+  test('returns 0 after all invitees have departed', async () => {
     addInvite('code_c', 'inviter_c');
-    addMember('member_c1', 'Eve', 'code_c', NOW - 100); // left
-    assert.equal(getUserInviteCount(GUILD, 'inviter_c'), 0);
+    await addMember('member_c1', 'Eve', 'code_c', NOW - 100); // left
+    assert.equal(await getUserInviteCount(GUILD, 'inviter_c'), 0);
   });
 
-  test('is guild-scoped — another guild invite does not count', () => {
-    const OTHER = 'guild_other';
-    db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES (?, ?, 0, ?, ?)`)
-      .run('code_other', 'inviter_a', NOW, OTHER);
-    addMember('member_other', 'Frank', 'code_other');
-    // inviter_a's count in GUILD should not include the OTHER guild invite
-    const count = getUserInviteCount(GUILD, 'inviter_a');
-    // still 2 from before, no extra from cross-guild
-    assert.equal(count, 2);
+  test('is guild-scoped — another guild invite does not count', async () => {
+    addInvite('gs_home', 'inviter_gs', GUILD);
+    addInvite('gs_other', 'inviter_gs', 'guild_other');
+    await addMember('gs_m1', 'One', 'gs_home');
+    await addMember('gs_m2', 'Two', 'gs_home');
+    await addMember('gs_m3', 'Three', 'gs_other');
+    assert.equal(await getUserInviteCount(GUILD, 'inviter_gs'), 2);
   });
 });
 
 describe('getLeaderboard — all_time scope', () => {
-  test('returns empty array when guild has no invites', () => {
-    assert.deepEqual(getLeaderboard('guild_empty_lb'), []);
+  test('returns empty array when guild has no invites', async () => {
+    assert.deepEqual(await getLeaderboard('guild_empty_lb'), []);
   });
 
-  test('ranks inviters by active invite count descending', () => {
+  test('ranks inviters by active invite count descending', async () => {
     const G = 'guild_lb_rank';
-    // inviter_x → 3 members, inviter_y → 1 member
-    db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES ('lbcx', 'inviter_x', 0, ?, ?)`).run(NOW, G);
-    db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES ('lbcy', 'inviter_y', 0, ?, ?)`).run(NOW, G);
-    ['lbm1','lbm2','lbm3'].forEach(id =>
-      db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES (?, 'u', ?, 'lbcx')`).run(id, NOW)
-    );
-    db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES ('lbm4', 'u', ?, 'lbcy')`).run(NOW);
+    addInvite('lbcx', 'inviter_x', G);
+    addInvite('lbcy', 'inviter_y', G);
+    await addMember('lbm1', 'u', 'lbcx');
+    await addMember('lbm2', 'u', 'lbcx');
+    await addMember('lbm3', 'u', 'lbcx');
+    await addMember('lbm4', 'u', 'lbcy');
 
-    const board = getLeaderboard(G, 'all_time');
+    const board = await getLeaderboard(G, 'all_time');
     assert.equal(board[0].inviter_id, 'inviter_x');
     assert.equal(board[0].invite_count, 3);
     assert.equal(board[1].inviter_id, 'inviter_y');
     assert.equal(board[1].invite_count, 1);
   });
 
-  test('excludes departed members', () => {
+  test('excludes departed members', async () => {
     const G = 'guild_lb_depart';
-    db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES ('dpc', 'inviter_dp', 0, ?, ?)`).run(NOW, G);
-    db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES ('dpm1', 'u', ?, 'dpc')`).run(NOW);
-    db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code, left_at) VALUES ('dpm2', 'u', ?, 'dpc', ?)`).run(NOW, NOW - 1);
+    addInvite('dpc', 'inviter_dp', G);
+    await addMember('dpm1', 'u', 'dpc');
+    await addMember('dpm2', 'u', 'dpc', NOW - 1);
 
-    const board = getLeaderboard(G, 'all_time');
+    const board = await getLeaderboard(G, 'all_time');
     assert.equal(board[0].invite_count, 1);
   });
 
-  test('returns at most 10 entries', () => {
+  test('returns at most 10 entries', async () => {
     const G = 'guild_lb_top10';
     for (let i = 0; i < 15; i++) {
-      const code = `t10c${i}`, inv = `t10inv${i}`, mem = `t10m${i}`;
-      db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES (?, ?, 0, ?, ?)`).run(code, inv, NOW, G);
-      db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES (?, 'u', ?, ?)`).run(mem, NOW, code);
+      addInvite(`t10c${i}`, `t10inv${i}`, G);
+      await addMember(`t10m${i}`, 'u', `t10c${i}`);
     }
-    assert.ok(getLeaderboard(G, 'all_time').length <= 10);
+    assert.ok((await getLeaderboard(G, 'all_time')).length <= 10);
   });
 });
 
 describe('getLeaderboard — live scope', () => {
-  test('only counts joins after startedAt', () => {
+  test('only counts joins after startedAt', async () => {
     const G = 'guild_lb_live';
-    const startedAt = NOW; // cutoff = now
-    db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES ('lvc', 'inviter_live', 0, ?, ?)`).run(NOW, G);
-    // Joined before cutoff
-    db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES ('lvm_old', 'u', ?, 'lvc')`).run(NOW - 100);
-    // Joined at or after cutoff
-    db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES ('lvm_new', 'u', ?, 'lvc')`).run(NOW + 1);
+    const startedAtMs = NOW * 1000; // caller passes milliseconds
+    addInvite('lvc', 'inviter_live', G);
+    await addMember('lvm_old', 'u', 'lvc', null, NOW - 100);
+    await addMember('lvm_new', 'u', 'lvc', null, NOW + 1);
 
-    const board = getLeaderboard(G, 'live', startedAt);
-    // Only the new member should count
+    const board = await getLeaderboard(G, 'live', startedAtMs);
     const entry = board.find(r => r.inviter_id === 'inviter_live');
     assert.ok(entry, 'inviter_live not in leaderboard');
     assert.equal(entry.invite_count, 1);
   });
 
-  test('returns empty when no joins after startedAt', () => {
+  test('returns empty when no joins after startedAt', async () => {
     const G = 'guild_lb_live_empty';
-    db.prepare(`INSERT OR IGNORE INTO invites (code, inviter_id, uses, created_at, guild_id) VALUES ('lve2', 'inv_le', 0, ?, ?)`).run(NOW, G);
-    db.prepare(`INSERT OR IGNORE INTO members (discord_id, username, joined_at, invite_code) VALUES ('lvm_past', 'u', ?, 'lve2')`).run(NOW - 9999);
-    // startedAt is now, so past join excluded
-    assert.deepEqual(getLeaderboard(G, 'live', NOW), []);
+    addInvite('lve2', 'inv_le', G);
+    await addMember('lvm_past', 'u', 'lve2', null, NOW - 9999);
+    assert.deepEqual(await getLeaderboard(G, 'live', NOW * 1000), []);
   });
 });
 
@@ -149,12 +146,8 @@ describe('leaderboard persistence', () => {
 
   test('createLeaderboard stores a record', () => {
     createLeaderboard({
-      guildId:          LB_GUILD,
-      channelId:        'ch_lb',
-      messageId:        'msg_lb_1',
-      scope:            'all_time',
-      startedAt:        NOW,
-      includeCommittee: true,
+      guildId: LB_GUILD, channelId: 'ch_lb', messageId: 'msg_lb_1',
+      scope: 'all_time', startedAt: NOW, includeCommittee: true,
     });
     const boards = getActiveLeaderboards(LB_GUILD);
     assert.equal(boards.length, 1);
@@ -165,12 +158,8 @@ describe('leaderboard persistence', () => {
 
   test('getActiveLeaderboards returns all boards for guild', () => {
     createLeaderboard({
-      guildId:          LB_GUILD,
-      channelId:        'ch_lb',
-      messageId:        'msg_lb_2',
-      scope:            'live',
-      startedAt:        NOW,
-      includeCommittee: false,
+      guildId: LB_GUILD, channelId: 'ch_lb', messageId: 'msg_lb_2',
+      scope: 'live', startedAt: NOW, includeCommittee: false,
     });
     assert.equal(getActiveLeaderboards(LB_GUILD).length, 2);
   });
@@ -184,14 +173,9 @@ describe('leaderboard persistence', () => {
 
   test('getActiveLeaderboards is scoped to guild', () => {
     createLeaderboard({
-      guildId:          'other_guild_lb',
-      channelId:        'ch_x',
-      messageId:        'msg_x',
-      scope:            'all_time',
-      startedAt:        NOW,
-      includeCommittee: true,
+      guildId: 'other_guild_lb', channelId: 'ch_x', messageId: 'msg_x',
+      scope: 'all_time', startedAt: NOW, includeCommittee: true,
     });
-    // LB_GUILD still has only 1 board (msg_lb_2)
     assert.equal(getActiveLeaderboards(LB_GUILD).length, 1);
   });
 });

@@ -1,8 +1,10 @@
 const { Events } = require('discord.js');
-const db                      = require('../../database/db');
+const db                      = require('../../database/db');   // SQLite — invites
+const pg                      = require('../../database/pg');   // Postgres — members
 const logger                  = require('../../utils/logger');
 const { startOnboardingFlow } = require('../../utils/onboardingFlow');
 const { getActiveLeaderboards } = require('../../utils/inviteUtils');
+const { revalidateWebsite }    = require('../../utils/websiteRevalidate');
 
 module.exports = {
   name: Events.GuildMemberAdd,
@@ -12,9 +14,10 @@ module.exports = {
 
     const { usedCode, inviterId } = await detectUsedInvite(member);
 
-    upsertMember(member, usedCode);
+    await upsertMember(member, usedCode);
     if (usedCode && inviterId) syncInviteUses(member.guild.id, usedCode, inviterId);
 
+    revalidateWebsite(['stats']).catch(() => {});
     await refreshLiveLeaderboards(member);
 
     try {
@@ -69,16 +72,18 @@ async function detectUsedInvite(member) {
   return { usedCode, inviterId };
 }
 
-function upsertMember(member, inviteCode) {
-  db.prepare(`
-    INSERT INTO members (discord_id, username, joined_at, invite_code, left_at)
-    VALUES (?, ?, ?, ?, NULL)
-    ON CONFLICT(discord_id) DO UPDATE SET
-      username = excluded.username,
-      joined_at = excluded.joined_at,
-      invite_code = COALESCE(excluded.invite_code, invite_code),
-      left_at = NULL
-  `).run(member.id, member.user.tag, Date.now(), inviteCode ?? null);
+async function upsertMember(member, inviteCode) {
+  const now = Math.floor(Date.now() / 1000);
+  await pg.query(
+    `INSERT INTO members (discord_id, username, joined_at, invite_code, left_at)
+     VALUES ($1, $2, $3, $4, NULL)
+     ON CONFLICT (discord_id) DO UPDATE SET
+       username    = excluded.username,
+       joined_at   = excluded.joined_at,
+       invite_code = COALESCE(excluded.invite_code, members.invite_code),
+       left_at     = NULL`,
+    [member.id, member.user.tag, now, inviteCode ?? null],
+  );
 }
 
 async function refreshLiveLeaderboards(member) {

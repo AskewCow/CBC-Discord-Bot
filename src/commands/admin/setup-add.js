@@ -99,6 +99,13 @@ module.exports = {
       });
     }
 
+    // The website's ambassador/committee sidebar is derived from these roles.
+    if (type === 'ambassador_role' || type === 'committee_role') {
+      require('../../utils/roster')
+        .syncRoster(interaction.guild)
+        .catch(() => {});
+    }
+
     const logEmbed = new EmbedBuilder()
       .setColor(0x57f287)
       .setTitle('⚙️⠀Setup Updated — Added')

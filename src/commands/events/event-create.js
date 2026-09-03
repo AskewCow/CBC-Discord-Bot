@@ -7,11 +7,12 @@ const {
   TextInputStyle,
   ActionRowBuilder,
 } = require('discord.js');
-const db = require('../../database/db');
+const pg = require('../../database/pg');
 const config = require('../../utils/config');
 const { CONFIG_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { requireCommittee } = require('../../utils/permissions');
+const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
@@ -19,6 +20,7 @@ const {
   buildEventEmbed,
   buildRegisterRow,
   logToModLog,
+  recountEvent,
 } = require('../../utils/eventHandlers');
 
 // Holds validated parameter state between the slash command and modal submit.
@@ -189,29 +191,40 @@ module.exports = {
 
     const now = Math.floor(Date.now() / 1000);
 
-    const { lastInsertRowid: eventId } = db.prepare(`
-      INSERT INTO events
-        (name, type, location, description, starts_at, ends_at, duration_minutes, ping, created_by, guild_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      name, type, location, description,
-      startsAt, startsAt + duration * 60,
-      duration, ping ? 1 : 0,
-      interaction.user.id, interaction.guildId, now
+    const { rows: [{ id: eventId }] } = await pg.query(
+      `INSERT INTO events
+         (name, type, location, description, starts_at, ends_at, duration_minutes, ping, created_by, guild_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id`,
+      [
+        name, type, location, description,
+        startsAt, startsAt + duration * 60,
+        duration, ping,
+        interaction.user.id, interaction.guildId, now,
+      ],
     );
 
     for (const orgId of organizerIds) {
-      db.prepare('INSERT OR IGNORE INTO event_organizers (event_id, discord_id) VALUES (?, ?)').run(eventId, orgId);
+      await pg.query(
+        'INSERT INTO event_organizers (event_id, discord_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [eventId, orgId],
+      );
+      await pg.query(
+        `INSERT INTO event_registrations (event_id, discord_id, registered_at, attended, withdrawn)
+         VALUES ($1, $2, $3, false, false)
+         ON CONFLICT (event_id, discord_id) DO NOTHING`,
+        [eventId, orgId, now],
+      );
     }
 
-    for (const orgId of organizerIds) {
-      db.prepare(
-        'INSERT OR IGNORE INTO event_registrations (event_id, discord_id, registered_at, attended, withdrawn) VALUES (?, ?, ?, 0, 0)'
-      ).run(eventId, orgId, now);
-    }
+    await pg.query(
+      `INSERT INTO event_reminders (event_id, type, sent)
+       VALUES ($1, '1day', false), ($1, '1hour', false)
+       ON CONFLICT DO NOTHING`,
+      [eventId],
+    );
 
-    db.prepare("INSERT OR IGNORE INTO event_reminders (event_id, type, sent) VALUES (?, '1day',  0)").run(eventId);
-    db.prepare("INSERT OR IGNORE INTO event_reminders (event_id, type, sent) VALUES (?, '1hour', 0)").run(eventId);
+    await recountEvent(eventId);
 
     const eventRow = { id: eventId, name, type, location, description, starts_at: startsAt, duration_minutes: duration };
     const embed    = buildEventEmbed(eventRow, organizerIds, organizerIds.length);
@@ -219,8 +232,12 @@ module.exports = {
 
     const message = await eventsChannel.send({ embeds: [embed], components: [row] });
 
-    db.prepare('UPDATE events SET message_id = ?, event_channel_id = ? WHERE id = ?')
-      .run(message.id, eventsChannel.id, eventId);
+    await pg.query(
+      'UPDATE events SET message_id = $1, event_channel_id = $2 WHERE id = $3',
+      [message.id, eventsChannel.id, eventId],
+    );
+
+    revalidateWebsite(['events']).catch(() => {});
 
     if (ping) {
       await eventsChannel.send('@everyone');

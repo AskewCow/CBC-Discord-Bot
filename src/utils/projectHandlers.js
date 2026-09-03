@@ -1,12 +1,17 @@
 const { MessageFlags } = require('discord.js');
-const db     = require('../database/db');
+const pg     = require('../database/pg');
+const config = require('./config');
 const logger = require('./logger');
 const { buildProjectEmbed, buildVoteRow } = require('./projectUtils');
 
-function getVoteCounts(projectId) {
-  const rows = db.prepare(`
-    SELECT vote, COUNT(*) AS count FROM project_votes WHERE project_id = ? GROUP BY vote
-  `).all(projectId);
+async function getVoteCounts(projectId) {
+  const rows = await pg.all(
+    `SELECT vote, COUNT(*)::int AS count
+       FROM project_votes
+      WHERE project_id = $1
+      GROUP BY vote`,
+    [projectId],
+  );
   let upvotes = 0, downvotes = 0;
   for (const r of rows) {
     if (r.vote === 'up')   upvotes   = r.count;
@@ -20,7 +25,7 @@ async function handleVote(interaction) {
   const direction = parts[2];  // 'up' or 'down'
   const projectId = parseInt(parts[3], 10);
 
-  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+  const project = await pg.get('SELECT * FROM projects WHERE id = $1', [projectId]);
   if (!project) {
     return interaction.reply({ content: 'Project not found.', flags: MessageFlags.Ephemeral });
   }
@@ -36,9 +41,10 @@ async function handleVote(interaction) {
   }
 
   // Check existing vote
-  const existing = db.prepare(
-    'SELECT vote FROM project_votes WHERE project_id = ? AND discord_id = ?'
-  ).get(projectId, interaction.user.id);
+  const existing = await pg.get(
+    'SELECT vote FROM project_votes WHERE project_id = $1 AND discord_id = $2',
+    [projectId, interaction.user.id],
+  );
 
   if (existing?.vote === direction) {
     return interaction.reply({
@@ -48,20 +54,20 @@ async function handleVote(interaction) {
   }
 
   // Upsert vote (allows changing direction)
-  db.prepare(`
-    INSERT INTO project_votes (project_id, discord_id, vote, voted_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(project_id, discord_id) DO UPDATE SET vote = excluded.vote, voted_at = excluded.voted_at
-  `).run(projectId, interaction.user.id, direction, now);
+  await pg.query(
+    `INSERT INTO project_votes (project_id, discord_id, vote, voted_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (project_id, discord_id)
+       DO UPDATE SET vote = excluded.vote, voted_at = excluded.voted_at`,
+    [projectId, interaction.user.id, direction, now],
+  );
 
-  const counts = getVoteCounts(projectId);
+  const counts = await getVoteCounts(projectId);
 
   // Update the review message embed with current counts
   try {
     if (project.review_message_id && project.guild_id) {
-      const [reviewChannelId] = db.prepare(
-        "SELECT value FROM config WHERE guild_id = ? AND key = 'projects_review_channel' LIMIT 1"
-      ).all(project.guild_id).map(r => r.value);
+      const [reviewChannelId] = config.getValues(project.guild_id, 'projects_review_channel');
 
       if (reviewChannelId) {
         const channel = await interaction.client.channels.fetch(reviewChannelId);

@@ -41,7 +41,7 @@ module.exports = {
     const guildId          = interaction.guild.id;
     const startedAt        = scope === 'live' ? Date.now() : null;
 
-    let rows = getLeaderboard(guildId, scope, startedAt);
+    let rows = await getLeaderboard(guildId, scope, startedAt);
 
     if (!includeCommittee) {
       rows = await filterCommittee(interaction.guild, rows);
@@ -148,7 +148,7 @@ async function refreshLiveLeaderboard(client, record) {
   const message = await channel.messages.fetch(message_id).catch(() => null);
   if (!message) return;
 
-  let rows = getLeaderboard(guild_id, scope, started_at);
+  let rows = await getLeaderboard(guild_id, scope, started_at);
 
   if (!include_committee) {
     rows = await filterCommittee(guild, rows);
