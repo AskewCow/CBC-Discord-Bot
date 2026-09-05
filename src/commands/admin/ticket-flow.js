@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 
 const STEP_TYPE_CHOICES = [
   { name: 'Message — send a plain message in the ticket', value: 'message' },
@@ -99,7 +99,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
     const sub = interaction.options.getSubcommand();
 
     // ── add ────────────────────────────────────────────────────────────────────

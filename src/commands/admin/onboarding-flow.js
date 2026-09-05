@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const onb = require('../../utils/onboarding');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 
 const STEP_TYPE_CHOICES = [
   { name: 'Text — ask a free-form question, collect their reply', value: 'text'   },
@@ -62,7 +62,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
     const sub = interaction.options.getSubcommand();
 
     // ── set-welcome ────────────────────────────────────────────────────────────

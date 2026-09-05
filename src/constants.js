@@ -11,7 +11,6 @@ const CONFIG_KEYS = {
   // categories
   TICKET_CATEGORY:         'ticket_category',
   // roles
-  ADMIN_ROLE:              'admin_role',
   COMMITTEE_ROLE:          'committee_role',
   AMBASSADOR_ROLE:         'ambassador_role',
   MEMBER_ROLE:             'member_role',
@@ -28,7 +27,6 @@ const SETUP_CHOICES = [
   { name: 'FAQ Channel',              value: 'faq_channel'             },
   { name: 'Ticket Panel Channel',     value: 'ticket_channel'          },
   { name: 'Ticket Category',          value: 'ticket_category'         },
-  { name: 'Admin Role',               value: 'admin_role'              },
   { name: 'Committee Role',           value: 'committee_role'          },
   { name: 'Ambassador Role',          value: 'ambassador_role'         },
   { name: 'Member Role',              value: 'member_role'             },
@@ -50,7 +48,6 @@ const CATEGORY_KEYS = new Set([
 ]);
 
 const ROLE_KEYS = new Set([
-  'admin_role',
   'committee_role',
   'ambassador_role',
   'member_role',

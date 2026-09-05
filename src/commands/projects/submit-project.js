@@ -141,12 +141,12 @@ module.exports = {
 
     if (!projectsChannelId) {
       return interaction.editReply({
-        embeds: [errorEmbed('Not configured', 'The projects channel has not been set up. Ask an admin to run `/setup-add`.')],
+        embeds: [errorEmbed('Not configured', 'The projects channel has not been set up. Ask an ambassador to run `/setup-add`.')],
       });
     }
     if (!reviewChannelId) {
       return interaction.editReply({
-        embeds: [errorEmbed('Not configured', 'The projects review channel has not been set up. Ask an admin to run `/setup-add`.')],
+        embeds: [errorEmbed('Not configured', 'The projects review channel has not been set up. Ask an ambassador to run `/setup-add`.')],
       });
     }
 
@@ -224,7 +224,7 @@ module.exports = {
       logger.error(`Failed to post project ${projectId}: ${err.message}`, err);
       await pg.query('DELETE FROM projects WHERE id = $1', [projectId]).catch(() => {});
       return interaction.editReply({
-        embeds: [errorEmbed('Submission Failed', 'Could not post your project. Please try again or contact an admin.')],
+        embeds: [errorEmbed('Submission Failed', 'Could not post your project. Please try again or contact an ambassador.')],
       });
     }
   },

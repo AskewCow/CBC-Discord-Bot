@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -62,7 +62,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
     const sub = interaction.options.getSubcommand();
 
     // ── setup ──────────────────────────────────────────────────────────────────

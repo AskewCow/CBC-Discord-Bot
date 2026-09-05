@@ -3,7 +3,7 @@ const {
   PermissionFlagsBits,
   MessageFlags,
 } = require('discord.js');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 const { errorEmbed } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
 
@@ -14,7 +14,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     const ticket = ticketUtil.getTicketByChannelId(interaction.channelId);
     if (!ticket) {

@@ -235,7 +235,7 @@ const FLOW_PLACEHOLDERS = {
   general:       { key: 'general_channel',       type: 'channel', fallback: 'general' },
   projects:      { key: 'projects_channel',      type: 'channel', fallback: 'projects' },
   'mod-log':     { key: 'mod_log_channel',       type: 'channel', fallback: 'mod-log' },
-  admin:         { key: 'admin_role',            type: 'role',    fallback: '@admins' },
+  ambassador:    { key: 'ambassador_role',       type: 'role',    fallback: '@ambassadors' },
   committee:     { key: 'committee_role',        type: 'role',    fallback: '@committee' },
   member:        { key: 'member_role',           type: 'role',    fallback: '@members' },
 };
@@ -294,9 +294,9 @@ function buildDisabledYesNoRow(chosen) {
 
 async function createTicketChannel(guild, opener, topic, panelId, optionId) {
   const cfg       = require('./config');
-  const categories = cfg.getValues(guild.id, 'ticket_category');
-  const adminRoles = cfg.getValues(guild.id, 'admin_role');
-  const commRoles  = cfg.getValues(guild.id, 'committee_role');
+  const categories       = cfg.getValues(guild.id, 'ticket_category');
+  const ambassadorRoles  = cfg.getValues(guild.id, 'ambassador_role');
+  const commRoles        = cfg.getValues(guild.id, 'committee_role');
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -327,8 +327,8 @@ async function createTicketChannel(guild, opener, topic, panelId, optionId) {
   const permissionOverwrites = [
     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: opener.id, allow: openerAllow },
-    ...adminRoles.map(id => ({ id, allow: staffAllow })),
-    ...commRoles.map(id  => ({ id, allow: staffAllow })),
+    ...ambassadorRoles.map(id => ({ id, allow: staffAllow })),
+    ...commRoles.map(id       => ({ id, allow: staffAllow })),
   ];
 
   const channel = await guild.channels.create({

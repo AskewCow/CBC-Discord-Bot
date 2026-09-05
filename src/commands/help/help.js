@@ -11,7 +11,7 @@ module.exports = {
 
     const description = channelIds.length
       ? `Head to ${channelIds.map(id => `<#${id}>`).join(' or ')} and use the dropdown menu to open a support ticket.`
-      : 'The ticket system has not been configured yet. Please contact an administrator.';
+      : 'The ticket system has not been configured yet. Please contact an ambassador.';
 
     return interaction.reply({
       embeds: [

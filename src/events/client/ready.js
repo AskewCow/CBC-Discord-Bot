@@ -4,6 +4,7 @@ const pg             = require('../../database/pg');   // Postgres — members
 const logger         = require('../../utils/logger');
 const eventScheduler   = require('../../utils/eventScheduler');
 const projectScheduler = require('../../utils/projectScheduler');
+const backupScheduler  = require('../../utils/backupScheduler');
 const { syncRoster }   = require('../../utils/roster');
 
 const upsertInvite = db.prepare(`
@@ -89,5 +90,6 @@ module.exports = {
 
     eventScheduler.start(client);
     projectScheduler.start(client);
+    backupScheduler.start(client);
   },
 };

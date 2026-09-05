@@ -3,7 +3,7 @@ const {
   EmbedBuilder,
   PermissionFlagsBits,
 } = require('discord.js');
-const { requireAdmin }            = require('../../utils/permissions');
+const { requireAmbassador }            = require('../../utils/permissions');
 const { getLeaderboard, createLeaderboard } = require('../../utils/inviteUtils');
 const { logToModLog }             = require('../../utils/eventHandlers');
 const { CONFIG_KEYS }             = require('../../constants');
@@ -32,7 +32,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     await interaction.deferReply();
 

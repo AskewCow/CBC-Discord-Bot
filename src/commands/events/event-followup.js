@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../../database/db');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,7 +18,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     const message  = interaction.options.getString('message');
     const linkText = interaction.options.getString('link_text');

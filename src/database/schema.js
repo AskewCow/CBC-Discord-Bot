@@ -30,6 +30,18 @@ function migrateConfig() {
   }
 }
 
+// "Admin Role" was folded into "Ambassador Role" — move any values already
+// stored under the old key so existing setups keep working, then drop them.
+function migrateAdminRoleToAmbassador() {
+  const cols = db.prepare("PRAGMA table_info(config)").all();
+  if (cols.length === 0) return;
+  db.exec(`
+    INSERT OR IGNORE INTO config (guild_id, key, value, added_at)
+      SELECT guild_id, 'ambassador_role', value, added_at FROM config WHERE key = 'admin_role';
+    DELETE FROM config WHERE key = 'admin_role';
+  `);
+}
+
 function migrateTickets() {
   const cols = db.prepare("PRAGMA table_info(tickets)").all();
   if (cols.length === 0) return;
@@ -43,6 +55,7 @@ function runSchema() {
   migrateInvites();
   migrateInviteLeaderboards();
   migrateConfig();
+  migrateAdminRoleToAmbassador();
   migrateTickets();
 
   db.exec(`
@@ -170,6 +183,15 @@ function runSchema() {
       message   TEXT NOT NULL DEFAULT 'Thank you for attending! We hope to see you at our next event.',
       link_text TEXT,
       link_url  TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS backup_config (
+      guild_id      TEXT PRIMARY KEY,
+      enabled       INTEGER NOT NULL DEFAULT 0,
+      interval_days INTEGER NOT NULL DEFAULT 7,
+      last_run_at   INTEGER,
+      updated_by    TEXT,
+      updated_at    INTEGER NOT NULL
     );
   `);
 }

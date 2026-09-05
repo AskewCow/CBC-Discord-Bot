@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 const pg = require('../../database/pg');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const {
   EVENT_COLORS,
@@ -50,7 +50,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     const eventId = parseInt(interaction.options.getString('event'));
     const event   = await pg.get('SELECT * FROM events WHERE id = $1 AND guild_id = $2', [eventId, interaction.guildId]);

@@ -8,7 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 const pg = require('../../database/pg');
 const logger = require('../../utils/logger');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
@@ -79,7 +79,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
     const style        = interaction.options.getString('style');
     const useEmbed     = interaction.options.getBoolean('embed');
     const colorKey     = interaction.options.getString('color') ?? 'default';
