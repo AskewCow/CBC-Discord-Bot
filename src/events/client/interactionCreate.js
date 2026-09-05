@@ -56,55 +56,52 @@ module.exports = {
       return;
     }
 
-    // ── Modal submissions ───────────────────────────────────────────────────────
-    if (interaction.isModalSubmit()) {
-      const id = interaction.customId;
-      try {
-        if (id === 'ticket_panel:setup')                return ticketModals.handlePanelSetup(interaction);
-        if (id.startsWith('ticket_panel:add_option:')) return ticketModals.handlePanelAddOption(interaction);
-        if (id.startsWith('ticket_flow:add_msg:'))     return ticketModals.handleFlowAddMessage(interaction);
-        if (id.startsWith('ticket_flow:add_yn:'))      return ticketModals.handleFlowAddYesNo(interaction);
-        if (id === 'onboarding_flow:set_welcome')       return onboardingModals.handleFlowSetWelcome(interaction);
-        if (id.startsWith('onboarding_flow:add_text:')) return onboardingModals.handleFlowAddText(interaction);
-        if (id.startsWith('onboarding_flow:add_yn:'))   return onboardingModals.handleFlowAddYesNo(interaction);
-        if (id.startsWith('format_message:'))            return formatMessage.handleModal(interaction);
-        if (id === 'event_create')                       return eventCreate.handleModal(interaction);
-        if (id === 'submit_project')                     return submitProject.handleModal(interaction);
-      } catch (err) {
-        logger.error(`Modal error (${id}): ${err.message}`, err);
-      }
-      return;
-    }
+    // ── Component / modal routing ──────────────────────────────────────────────
+    // Each route is [matcher, handler]; matcher is an exact id or a prefix
+    // ending in ':'. First match wins. Handlers are awaited so rejections land
+    // in the catch below instead of becoming unhandled rejections.
+    const routes = {
+      modal: [
+        ['ticket_panel:setup',        ticketModals.handlePanelSetup],
+        ['ticket_panel:add_option:',  ticketModals.handlePanelAddOption],
+        ['ticket_flow:add_msg:',      ticketModals.handleFlowAddMessage],
+        ['ticket_flow:add_yn:',       ticketModals.handleFlowAddYesNo],
+        ['onboarding_flow:set_welcome', onboardingModals.handleFlowSetWelcome],
+        ['onboarding_flow:add_text:', onboardingModals.handleFlowAddText],
+        ['onboarding_flow:add_yn:',   onboardingModals.handleFlowAddYesNo],
+        ['format_message:',           (i) => formatMessage.handleModal(i)],
+        ['event_create',              (i) => eventCreate.handleModal(i)],
+        ['submit_project',            (i) => submitProject.handleModal(i)],
+      ],
+      select: [
+        ['ticket:open', ticketHandlers.handleTicketOpen],
+      ],
+      button: [
+        ['ticket:close_confirm:', ticketHandlers.handleCloseConfirm],
+        ['ticket:close_cancel:',  ticketHandlers.handleCloseCancel],
+        ['ticket:close:',         ticketHandlers.handleClose],
+        ['ticket:yn:',            ticketHandlers.handleYesNo],
+        ['onboarding:yn:',        onboardingHandlers.handleYesNo],
+        ['event:register:',       eventHandlers.handleRegister],
+        ['event:withdraw:',       eventHandlers.handleWithdraw],
+        ['event:attend:',         eventHandlers.handleAttend],
+        ['project:vote:',         projectHandlers.handleVote],
+      ],
+    };
 
-    // ── String select menus ─────────────────────────────────────────────────────
-    if (interaction.isStringSelectMenu()) {
-      try {
-        if (interaction.customId === 'ticket:open') return ticketHandlers.handleTicketOpen(interaction);
-      } catch (err) {
-        logger.error(`Select menu error (${interaction.customId}): ${err.message}`, err);
-      }
-      return;
-    }
-
-    // ── Buttons ─────────────────────────────────────────────────────────────────
-    if (interaction.isButton()) {
+    const dispatch = async (kind) => {
       const id = interaction.customId;
+      const route = routes[kind].find(([m]) => (m.endsWith(':') ? id.startsWith(m) : id === m));
+      if (!route) return;
       try {
-        if (id.startsWith('ticket:close:') && !id.includes('confirm') && !id.includes('cancel')) {
-          return ticketHandlers.handleClose(interaction);
-        }
-        if (id.startsWith('ticket:close_confirm:')) return ticketHandlers.handleCloseConfirm(interaction);
-        if (id.startsWith('ticket:close_cancel:'))  return ticketHandlers.handleCloseCancel(interaction);
-        if (id.startsWith('ticket:yn:'))              return ticketHandlers.handleYesNo(interaction);
-        if (id.startsWith('onboarding:yn:'))          return onboardingHandlers.handleYesNo(interaction);
-        if (id.startsWith('event:register:'))         return eventHandlers.handleRegister(interaction);
-        if (id.startsWith('event:withdraw:'))         return eventHandlers.handleWithdraw(interaction);
-        if (id.startsWith('event:attend:'))           return eventHandlers.handleAttend(interaction);
-        if (id.startsWith('project:vote:'))           return projectHandlers.handleVote(interaction);
+        await route[1](interaction);
       } catch (err) {
-        logger.error(`Button error (${id}): ${err.message}`, err);
+        logger.error(`${kind} error (${id}): ${err.message}`, err);
       }
-      return;
-    }
+    };
+
+    if (interaction.isModalSubmit())      return dispatch('modal');
+    if (interaction.isStringSelectMenu()) return dispatch('select');
+    if (interaction.isButton())           return dispatch('button');
   },
 };

@@ -6,34 +6,22 @@ const eventScheduler   = require('../../utils/eventScheduler');
 const projectScheduler = require('../../utils/projectScheduler');
 const backupScheduler  = require('../../utils/backupScheduler');
 const { syncRoster }   = require('../../utils/roster');
+const { buildInviteMap, syncInviteFromFetch } = require('../../utils/inviteUtils');
 
-const upsertInvite = db.prepare(`
-  INSERT INTO invites (code, inviter_id, uses, guild_id, created_at)
-  VALUES (?, ?, ?, ?, ?)
-  ON CONFLICT(code) DO UPDATE SET
-    uses     = MAX(uses, excluded.uses),
-    guild_id = CASE WHEN guild_id = '' THEN excluded.guild_id ELSE guild_id END
-`);
+const syncInvitesTx = db.transaction((invites, guildId) => {
+  for (const inv of invites.values()) {
+    if (inv.inviter) syncInviteFromFetch(inv.code, inv.inviter.id, inv.uses ?? 0, guildId);
+  }
+});
 
 async function cacheGuildInvites(client) {
   client.inviteCache = new Map();
   for (const guild of client.guilds.cache.values()) {
     try {
       const invites = await guild.invites.fetch();
-      const map = new Map();
+      syncInvitesTx(invites, guild.id);
 
-      const syncMany = db.transaction((rows) => {
-        for (const row of rows) upsertInvite.run(...row);
-      });
-
-      const rows = [];
-      for (const invite of invites.values()) {
-        if (!invite.inviter) continue;
-        map.set(invite.code, { uses: invite.uses ?? 0, inviterId: invite.inviter.id });
-        rows.push([invite.code, invite.inviter.id, invite.uses ?? 0, guild.id, Date.now()]);
-      }
-
-      syncMany(rows);
+      const map = buildInviteMap(invites);
       client.inviteCache.set(guild.id, map);
       logger.debug(`Cached and synced ${map.size} invites for guild ${guild.id}`);
 

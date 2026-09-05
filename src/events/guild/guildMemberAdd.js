@@ -1,9 +1,13 @@
 const { Events } = require('discord.js');
-const db                      = require('../../database/db');   // SQLite — invites
 const pg                      = require('../../database/pg');   // Postgres — members
 const logger                  = require('../../utils/logger');
+const { nowSec }              = require('../../utils/time');
 const { startOnboardingFlow } = require('../../utils/onboardingFlow');
-const { getActiveLeaderboards } = require('../../utils/inviteUtils');
+const {
+  getActiveLeaderboards,
+  buildInviteMap,
+  bumpInviteUse,
+} = require('../../utils/inviteUtils');
 const { revalidateWebsite }    = require('../../utils/websiteRevalidate');
 
 module.exports = {
@@ -15,7 +19,7 @@ module.exports = {
     const { usedCode, inviterId } = await detectUsedInvite(member);
 
     await upsertMember(member, usedCode);
-    if (usedCode && inviterId) syncInviteUses(member.guild.id, usedCode, inviterId);
+    if (usedCode && inviterId) bumpInviteUse(usedCode, inviterId, member.guild.id);
 
     revalidateWebsite(['stats']).catch(() => {});
     await refreshLiveLeaderboards(member);
@@ -41,39 +45,26 @@ async function detectUsedInvite(member) {
     return { usedCode: null, inviterId: null };
   }
 
-  let usedCode   = null;
-  let inviterId  = null;
+  let usedCode  = null;
+  let inviterId = null;
 
   for (const invite of newInvites.values()) {
     if (!invite.inviter) continue;
     const prior = cachedMap.get(invite.code);
-    if (prior && invite.uses > prior.uses) {
-      usedCode  = invite.code;
-      inviterId = invite.inviter.id;
-      break;
-    }
-    // New invite (not previously cached) with uses > 0 means it was just created and used
-    if (!prior && invite.uses > 0) {
+    // Existing invite whose use count went up, or a brand-new invite that
+    // already has a use — either way this member came through it.
+    if ((prior && invite.uses > prior.uses) || (!prior && invite.uses > 0)) {
       usedCode  = invite.code;
       inviterId = invite.inviter.id;
       break;
     }
   }
 
-  // Refresh cache with current invite state
-  const newMap = new Map();
-  for (const invite of newInvites.values()) {
-    if (invite.inviter) {
-      newMap.set(invite.code, { uses: invite.uses ?? 0, inviterId: invite.inviter.id });
-    }
-  }
-  client.inviteCache.set(guildId, newMap);
-
+  client.inviteCache.set(guildId, buildInviteMap(newInvites));
   return { usedCode, inviterId };
 }
 
 async function upsertMember(member, inviteCode) {
-  const now = Math.floor(Date.now() / 1000);
   await pg.query(
     `INSERT INTO members (discord_id, username, joined_at, invite_code, left_at)
      VALUES ($1, $2, $3, $4, NULL)
@@ -82,7 +73,7 @@ async function upsertMember(member, inviteCode) {
        joined_at   = excluded.joined_at,
        invite_code = COALESCE(excluded.invite_code, members.invite_code),
        left_at     = NULL`,
-    [member.id, member.user.tag, now, inviteCode ?? null],
+    [member.id, member.user.tag, nowSec(), inviteCode ?? null],
   );
 }
 
@@ -97,14 +88,4 @@ async function refreshLiveLeaderboards(member) {
       logger.warn(`Failed to refresh live leaderboard ${record.message_id}: ${err.message}`)
     );
   }
-}
-
-function syncInviteUses(guildId, code, inviterId) {
-  db.prepare(`
-    INSERT INTO invites (code, inviter_id, uses, guild_id, created_at)
-    VALUES (?, ?, 1, ?, ?)
-    ON CONFLICT(code) DO UPDATE SET
-      uses = uses + 1,
-      last_used_at = ?
-  `).run(code, inviterId, guildId, Date.now(), Date.now());
 }

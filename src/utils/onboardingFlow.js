@@ -4,8 +4,17 @@ const pg       = require('../database/pg');
 const cfg      = require('./config');
 const logger   = require('./logger');
 const onb      = require('./onboarding');
+const { nowSec } = require('./time');
+const { CONFIG_KEYS } = require('../constants');
+const { logToModLog } = require('./modLog');
 
 const ONBOARDING_COLOR = 0x57f287;
+
+// Steps that come after `step` in (step_order, id) order — the tail still to run.
+const stepsAfter = (steps, step) =>
+  steps.filter(
+    (s) => s.step_order > step.step_order || (s.step_order === step.step_order && s.id > step.id),
+  );
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -124,11 +133,7 @@ async function resumeAfterYesNo(interaction, session, stepId, choice) {
     return _completeFlow(interaction.channel, freshSession, guild);
   }
 
-  const allSteps = onb.getSteps(step.flow_id);
-  const remaining = allSteps.filter(
-    s => s.step_order > step.step_order || (s.step_order === step.step_order && s.id > step.id)
-  );
-
+  const remaining = stepsAfter(onb.getSteps(step.flow_id), step);
   await _runSteps(interaction.channel, session, remaining, guild);
 }
 
@@ -142,13 +147,8 @@ async function resumeAfterText(message, session) {
 
   onb.appendAnswer(session.id, currentStep.id, currentStep.content, message.content);
 
-  const remaining = steps.filter(
-    s => s.step_order > currentStep.step_order ||
-         (s.step_order === currentStep.step_order && s.id > currentStep.id)
-  );
-
   const guild = message.client.guilds.cache.get(session.guild_id);
-  await _runSteps(message.channel, session, remaining, guild);
+  await _runSteps(message.channel, session, stepsAfter(steps, currentStep), guild);
 }
 
 // ─── Completion ───────────────────────────────────────────────────────────────
@@ -174,8 +174,8 @@ async function _completeFlow(dmChannel, session, guild) {
 }
 
 async function _postModLog(session, guild) {
-  const modLogChannels = cfg.getValues(guild.id, 'mod_log_channel');
-  if (!modLogChannels.length) return;
+  // Skip the member fetch + embed build entirely when there's nowhere to post.
+  if (!cfg.getValues(guild.id, CONFIG_KEYS.MOD_LOG_CHANNEL).length) return;
 
   const answers = JSON.parse(session.answers).filter(a => a.answer !== null);
 
@@ -211,18 +211,11 @@ async function _postModLog(session, guild) {
     embed.addFields({ name: '…', value: `And ${answers.length - MAX_QA_FIELDS} more response(s)` });
   }
 
-  for (const channelId of modLogChannels) {
-    try {
-      const channel = await guild.channels.fetch(channelId);
-      await channel.send({ embeds: [embed] });
-    } catch (err) {
-      logger.warn(`Could not post onboarding log to channel ${channelId}: ${err.message}`);
-    }
-  }
+  await logToModLog(guild.client, guild.id, embed);
 }
 
 async function _assignMemberRole(discordId, guild) {
-  const [roleId] = cfg.getValues(guild.id, 'member_role');
+  const [roleId] = cfg.getValues(guild.id, CONFIG_KEYS.MEMBER_ROLE);
   if (!roleId) return;
   try {
     const member = await guild.members.fetch(discordId);
@@ -234,8 +227,7 @@ async function _assignMemberRole(discordId, guild) {
 }
 
 async function _markOnboarded(discordId) {
-  const now = Math.floor(Date.now() / 1000);
-  await pg.query('UPDATE members SET onboarded_at = $1 WHERE discord_id = $2', [now, discordId])
+  await pg.query('UPDATE members SET onboarded_at = $1 WHERE discord_id = $2', [nowSec(), discordId])
     .catch(err => logger.warn(`Could not mark ${discordId} onboarded: ${err.message}`));
 }
 

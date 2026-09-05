@@ -13,10 +13,8 @@ module.exports = {
     const session = onb.getActiveSessionByUser(message.author.id);
     if (!session) return;
 
-    const steps       = onb.getSteps(session.flow_id);
-    const currentStep = steps.find(s => s.step_order === session.current_step);
-    if (!currentStep || currentStep.step_type !== 'text') return;
-
+    // resumeAfterText re-checks that the session's current step is a text step
+    // and no-ops otherwise, so no need to duplicate that here.
     try {
       await resumeAfterText(message, session);
     } catch (err) {

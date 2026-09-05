@@ -1,5 +1,6 @@
 const db = require('../database/db');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { nowSec } = require('./time');
 
 // ─── DB helpers — flows ───────────────────────────────────────────────────────
 
@@ -11,51 +12,41 @@ function deleteFlow(guildId) {
   db.prepare('DELETE FROM onboarding_flows WHERE guild_id = ?').run(guildId);
 }
 
-function upsertWelcomeFlow(guildId, welcomeMsg, createdBy) {
-  const now      = Math.floor(Date.now() / 1000);
+/**
+ * Insert or update the guild's single onboarding flow row.
+ * @param {object} patch  any of { flowType, welcomeMsg } — omitted fields are
+ *   left untouched on an existing row (on insert they default to null/'welcome').
+ */
+function upsertFlow(guildId, patch, createdBy) {
+  const now      = nowSec();
   const existing = getFlow(guildId);
-  if (existing) {
-    db.prepare(
-      'UPDATE onboarding_flows SET flow_type = ?, welcome_msg = ?, updated_at = ? WHERE guild_id = ?'
-    ).run('welcome', welcomeMsg, now, guildId);
-  } else {
+
+  if (!existing) {
     db.prepare(
       'INSERT INTO onboarding_flows (guild_id, flow_type, welcome_msg, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(guildId, 'welcome', welcomeMsg, createdBy, now, now);
+    ).run(guildId, patch.flowType ?? 'welcome', patch.welcomeMsg ?? null, createdBy, now, now);
+    return getFlow(guildId);
   }
+
+  const sets = ['updated_at = ?'];
+  const params = [now];
+  if (patch.flowType !== undefined)   { sets.push('flow_type = ?');   params.push(patch.flowType); }
+  if (patch.welcomeMsg !== undefined) { sets.push('welcome_msg = ?'); params.push(patch.welcomeMsg); }
+  params.push(guildId);
+  db.prepare(`UPDATE onboarding_flows SET ${sets.join(', ')} WHERE guild_id = ?`).run(...params);
   return getFlow(guildId);
 }
 
-// Update only the welcome_msg without changing flow_type or steps
-function setWelcomeMsg(guildId, welcomeMsg, createdBy) {
-  const now      = Math.floor(Date.now() / 1000);
-  const existing = getFlow(guildId);
-  if (existing) {
-    db.prepare('UPDATE onboarding_flows SET welcome_msg = ?, updated_at = ? WHERE guild_id = ?')
-      .run(welcomeMsg, now, guildId);
-  } else {
-    db.prepare(
-      'INSERT INTO onboarding_flows (guild_id, flow_type, welcome_msg, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(guildId, 'welcome', welcomeMsg, createdBy, now, now);
-  }
-  return getFlow(guildId);
-}
+const upsertWelcomeFlow = (guildId, welcomeMsg, createdBy) =>
+  upsertFlow(guildId, { flowType: 'welcome', welcomeMsg }, createdBy);
 
-function upsertQuestionsFlow(guildId, createdBy) {
-  const now      = Math.floor(Date.now() / 1000);
-  const existing = getFlow(guildId);
-  if (existing) {
-    // Preserve welcome_msg when switching to questions type
-    db.prepare(
-      'UPDATE onboarding_flows SET flow_type = ?, updated_at = ? WHERE guild_id = ?'
-    ).run('questions', now, guildId);
-  } else {
-    db.prepare(
-      'INSERT INTO onboarding_flows (guild_id, flow_type, welcome_msg, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(guildId, 'questions', null, createdBy, now, now);
-  }
-  return getFlow(guildId);
-}
+// Update only the welcome_msg without changing flow_type or steps.
+const setWelcomeMsg = (guildId, welcomeMsg, createdBy) =>
+  upsertFlow(guildId, { welcomeMsg }, createdBy);
+
+// Switch to a questions flow, preserving any existing welcome_msg.
+const upsertQuestionsFlow = (guildId, createdBy) =>
+  upsertFlow(guildId, { flowType: 'questions' }, createdBy);
 
 // ─── DB helpers — steps ───────────────────────────────────────────────────────
 
@@ -104,7 +95,7 @@ function getActiveSessionByUser(discordId) {
 }
 
 function createSession(discordId, guildId, flowId) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   db.prepare(
     'INSERT OR REPLACE INTO onboarding_sessions (discord_id, guild_id, flow_id, current_step, status, answers, started_at, completed_at) VALUES (?, ?, ?, 0, ?, ?, ?, NULL)'
   ).run(discordId, guildId, flowId, 'in_progress', '[]', now);
@@ -123,7 +114,7 @@ function appendAnswer(sessionId, stepId, question, answer) {
 }
 
 function completeSession(sessionId) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   db.prepare(
     "UPDATE onboarding_sessions SET status = 'complete', completed_at = ? WHERE id = ?"
   ).run(now, sessionId);
