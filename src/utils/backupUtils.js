@@ -43,10 +43,31 @@ async function dumpSqlite() {
   return buffer;
 }
 
+// Full guild member fetches hit the gateway (opcode 8) and get rate-limited,
+// most often right after a restart. Retry with backoff before giving up —
+// this job isn't time-critical, so a few minutes of waiting is fine.
+const MEMBER_FETCH_RETRY_MS = [30_000, 60_000, 120_000];
+
+async function fetchGuildMembers(guild) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await guild.members.fetch();
+    } catch (err) {
+      if (attempt >= MEMBER_FETCH_RETRY_MS.length) throw err;
+      const waitMs = MEMBER_FETCH_RETRY_MS[attempt];
+      logger.warn(
+        `backup: member fetch for guild ${guild.id} failed (${err.message}); ` +
+          `retry ${attempt + 1}/${MEMBER_FETCH_RETRY_MS.length} in ${waitMs / 1000}s`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+}
+
 async function findRecipients(guild) {
   const roleIds = cfg.getValues(guild.id, CONFIG_KEYS.AMBASSADOR_ROLE);
   if (roleIds.length === 0) return [];
-  const members = await guild.members.fetch();
+  const members = await fetchGuildMembers(guild);
   return [...members.values()].filter((m) => roleIds.some((id) => m.roles.cache.has(id)));
 }
 

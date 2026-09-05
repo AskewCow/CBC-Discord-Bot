@@ -7,12 +7,16 @@ const backupConfig = require('./backupConfig');
 const { runBackup } = require('./backupUtils');
 
 const TICK_MS = 60 * 60 * 1000;
+// On boot the gateway is still identifying and guild-member fetches get
+// rate-limited (opcode 8). Give it a couple of minutes before the first check
+// so a due backup doesn't fail immediately and thrash on every restart.
+const FIRST_TICK_DELAY_MS = 2 * 60 * 1000;
 
 let _client = null;
 
 function start(client) {
   _client = client;
-  tick();
+  setTimeout(tick, FIRST_TICK_DELAY_MS);
   setInterval(tick, TICK_MS);
 }
 
