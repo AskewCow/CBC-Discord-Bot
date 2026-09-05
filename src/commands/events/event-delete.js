@@ -1,19 +1,16 @@
-const {
-  SlashCommandBuilder,
-  EmbedBuilder,
-  PermissionFlagsBits,
-  MessageFlags,
-} = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const pg = require('../../database/pg');
-const { successEmbed, errorEmbed, brandFooter } = require('../../utils/embeds');
+const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
+const { logToModLog, modLogEmbed } = require('../../utils/modLog');
+const { mentionList, dmUsers } = require('../../utils/discord');
+const { nowSec } = require('../../utils/time');
+const { toChoices } = require('../../utils/autocomplete');
 const {
-  EVENT_COLORS,
   EVENT_TYPE_LABELS,
   formatDuration,
   buildCancelledEmbed,
-  logToModLog,
 } = require('../../utils/eventHandlers');
 const logger = require('../../utils/logger');
 
@@ -30,23 +27,18 @@ module.exports = {
     ),
 
   async autocomplete(interaction) {
-    const focused = interaction.options.getFocused().toLowerCase();
-    const now = Math.floor(Date.now() / 1000);
-
-    // List non-ended events for this guild, newest first
+    const focused = interaction.options.getFocused();
+    // Non-ended events for this guild, soonest first, name-filtered in SQL.
     const events = await pg.all(
       `SELECT id, name FROM events
-        WHERE guild_id = $1 AND (starts_at + duration_minutes * 60) > $2
+        WHERE guild_id = $1
+          AND (starts_at + duration_minutes * 60) > $2
+          AND name ILIKE '%' || $3 || '%'
         ORDER BY starts_at ASC
         LIMIT 25`,
-      [interaction.guildId, now],
+      [interaction.guildId, nowSec(), focused],
     );
-
-    const filtered = focused
-      ? events.filter(e => e.name.toLowerCase().includes(focused))
-      : events;
-
-    await interaction.respond(filtered.map(e => ({ name: e.name, value: String(e.id) })));
+    await interaction.respond(toChoices(events));
   },
 
   async execute(interaction) {
@@ -87,40 +79,32 @@ module.exports = {
     }
 
     // DM all registered participants
-    const cancelEmbed = new EmbedBuilder()
-      .setColor(0xed4245)
-      .setTitle(`🚫⠀Event Cancelled: ${event.name}`)
-      .setDescription("We're sorry, but this event has been cancelled. We hope to see you at a future event!")
-      .addFields(
+    const cancelEmbed = modLogEmbed({
+      color: 0xed4245,
+      title: `🚫⠀Event Cancelled: ${event.name}`,
+      description: "We're sorry, but this event has been cancelled. We hope to see you at a future event!",
+      footer: 'CBC Events',
+      fields: [
         { name: 'Was scheduled for', value: `<t:${event.starts_at}:F>`, inline: true },
         { name: 'Location',          value: event.location || 'TBD',    inline: true },
-      )
-      .setFooter(brandFooter('CBC Events'));
-
-    for (const userId of participants) {
-      try {
-        const user = await interaction.client.users.fetch(userId);
-        await user.send({ embeds: [cancelEmbed] });
-      } catch (err) {
-        logger.warn(`Could not send cancellation DM to ${userId}: ${err.message}`);
-      }
-    }
+      ],
+    });
+    await dmUsers(interaction.client, participants, { embeds: [cancelEmbed] }, 'event cancellation');
 
     // Log to mod log
-    const organizerMentions = organizers.map(id => `<@${id}>`).join(', ') || 'N/A';
-    const logEmbed = new EmbedBuilder()
-      .setColor(0xed4245)
-      .setTitle(`🗑️⠀Event Deleted: ${event.name}`)
-      .addFields(
-        { name: 'Type',              value: EVENT_TYPE_LABELS[event.type] || event.type, inline: true  },
-        { name: 'Was scheduled for', value: `<t:${event.starts_at}:F>`,                 inline: true  },
-        { name: 'Duration',          value: formatDuration(event.duration_minutes),      inline: true  },
-        { name: 'Organiser(s)',       value: organizerMentions,                          inline: false },
-        { name: 'Deleted by',        value: `<@${interaction.user.id}>`,                inline: true  },
-        { name: 'Participants notified', value: `${participants.length}`,               inline: true  },
-      )
-      .setFooter(brandFooter('CBC Events'));
-
+    const logEmbed = modLogEmbed({
+      color: 0xed4245,
+      title: `🗑️⠀Event Deleted: ${event.name}`,
+      footer: 'CBC Events',
+      fields: [
+        { name: 'Type',                  value: EVENT_TYPE_LABELS[event.type] || event.type, inline: true  },
+        { name: 'Was scheduled for',     value: `<t:${event.starts_at}:F>`,                 inline: true  },
+        { name: 'Duration',              value: formatDuration(event.duration_minutes),      inline: true  },
+        { name: 'Organiser(s)',          value: mentionList(organizers),                     inline: false },
+        { name: 'Deleted by',            value: `<@${interaction.user.id}>`,                inline: true  },
+        { name: 'Participants notified', value: `${participants.length}`,                    inline: true  },
+      ],
+    });
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 
     // Delete the event (cascade removes registrations, organizers, reminders, etc.)

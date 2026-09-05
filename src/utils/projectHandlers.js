@@ -2,6 +2,8 @@ const { MessageFlags } = require('discord.js');
 const pg     = require('../database/pg');
 const config = require('./config');
 const logger = require('./logger');
+const { nowSec } = require('./time');
+const { CONFIG_KEYS } = require('../constants');
 const { buildProjectEmbed, buildVoteRow } = require('./projectUtils');
 
 async function getVoteCounts(projectId) {
@@ -20,6 +22,27 @@ async function getVoteCounts(projectId) {
   return { upvotes, downvotes };
 }
 
+/**
+ * Re-render a project's message in the review channel. Shared by the live vote
+ * button (open) and the scheduler when a vote window closes. Best-effort — a
+ * missing channel/message is skipped.
+ */
+async function refreshReviewMessage(client, project, counts, { closed = false } = {}) {
+  if (!project.review_message_id || !project.guild_id) return;
+  const [reviewChannelId] = config.getValues(project.guild_id, CONFIG_KEYS.PROJECTS_REVIEW_CHANNEL);
+  if (!reviewChannelId) return;
+
+  const channel = await client.channels.fetch(reviewChannelId).catch(() => null);
+  if (!channel) return;
+  const msg = await channel.messages.fetch(project.review_message_id).catch(() => null);
+  if (!msg) return;
+
+  await msg.edit({
+    embeds: [buildProjectEmbed(project, closed ? { voteClosed: true, counts } : { forReview: true, counts })],
+    components: [buildVoteRow(project.id, closed ? { disabled: true, ...counts } : {})],
+  });
+}
+
 async function handleVote(interaction) {
   const parts     = interaction.customId.split(':'); // project:vote:up/down:id
   const direction = parts[2];  // 'up' or 'down'
@@ -30,7 +53,7 @@ async function handleVote(interaction) {
     return interaction.reply({ content: 'Project not found.', flags: MessageFlags.Ephemeral });
   }
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
 
   // Reject votes after the window closes
   if (project.vote_closed || (project.vote_ends_at && project.vote_ends_at <= now)) {
@@ -64,23 +87,9 @@ async function handleVote(interaction) {
 
   const counts = await getVoteCounts(projectId);
 
-  // Update the review message embed with current counts
-  try {
-    if (project.review_message_id && project.guild_id) {
-      const [reviewChannelId] = config.getValues(project.guild_id, 'projects_review_channel');
-
-      if (reviewChannelId) {
-        const channel = await interaction.client.channels.fetch(reviewChannelId);
-        const msg     = await channel.messages.fetch(project.review_message_id);
-        await msg.edit({
-          embeds: [buildProjectEmbed(project, { forReview: true, counts })],
-          components: [buildVoteRow(projectId)],
-        });
-      }
-    }
-  } catch (err) {
-    logger.warn(`Could not update review message for project ${projectId}: ${err.message}`);
-  }
+  await refreshReviewMessage(interaction.client, project, counts).catch((err) =>
+    logger.warn(`Could not update review message for project ${projectId}: ${err.message}`),
+  );
 
   const changed = existing ? ' (changed)' : '';
   return interaction.reply({
@@ -89,4 +98,4 @@ async function handleVote(interaction) {
   });
 }
 
-module.exports = { handleVote, getVoteCounts };
+module.exports = { handleVote, getVoteCounts, refreshReviewMessage };

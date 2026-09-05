@@ -7,7 +7,7 @@ const {
 const { brandFooter } = require('../../utils/embeds');
 const { requireAmbassador }            = require('../../utils/permissions');
 const { getLeaderboard, createLeaderboard, deleteLeaderboard } = require('../../utils/inviteUtils');
-const { logToModLog }             = require('../../utils/eventHandlers');
+const { logToModLog }             = require('../../utils/modLog');
 const { CONFIG_KEYS }             = require('../../constants');
 const config                      = require('../../utils/config');
 

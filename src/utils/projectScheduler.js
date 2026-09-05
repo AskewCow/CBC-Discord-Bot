@@ -1,13 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-const { brandFooter } = require('./embeds');
 const pg     = require('../database/pg');
-const config = require('./config');
 const logger = require('./logger');
-const { buildProjectEmbed, buildVoteRow } = require('./projectUtils');
-const { getVoteCounts } = require('./projectHandlers');
+const { nowSec } = require('./time');
+const { getVoteCounts, refreshReviewMessage } = require('./projectHandlers');
 const { deriveTagsFromGitHub } = require('./githubTags');
 const { revalidateWebsite } = require('./websiteRevalidate');
-const { logToModLog } = require('./eventHandlers');
+const { logToModLog, modLogEmbed } = require('./modLog');
 
 // A project auto-publishes to the website when its closed vote clears this net
 // score (👍 minus 👎). Committee can also publish manually with /publish-project.
@@ -23,7 +20,7 @@ function start(client) {
 
 async function tick() {
   if (!_client?.isReady()) return;
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   await closeExpiredVotes(now).catch(err =>
     logger.error(`Project vote close tick error: ${err.message}`, err)
   );
@@ -53,7 +50,7 @@ async function finaliseVote(project) {
   // Mark closed in DB first so concurrent ticks skip it
   await pg.query('UPDATE projects SET vote_closed = true WHERE id = $1', [project.id]);
 
-  await updateReviewEmbed(project, counts).catch(err =>
+  await refreshReviewMessage(_client, project, counts, { closed: true }).catch(err =>
     logger.warn(`Project ${project.id}: could not update review embed — ${err.message}`)
   );
 
@@ -69,30 +66,10 @@ async function finaliseVote(project) {
   }
 }
 
-async function updateReviewEmbed(project, counts) {
-  if (!project.review_message_id || !project.guild_id) {
-    logger.warn(`Project ${project.id} has no review_message_id or guild_id — skipping embed update`);
-    return;
-  }
-
-  const [reviewChannelId] = config.getValues(project.guild_id, 'projects_review_channel');
-  if (!reviewChannelId) {
-    logger.warn(`No projects_review_channel configured for guild ${project.guild_id}`);
-    return;
-  }
-
-  const channel = await _client.channels.fetch(reviewChannelId);
-  const msg     = await channel.messages.fetch(project.review_message_id);
-  await msg.edit({
-    embeds: [buildProjectEmbed(project, { voteClosed: true, counts })],
-    components: [buildVoteRow(project.id, { disabled: true, ...counts })],
-  });
-}
-
 // Publish a project to the website after a passing vote: set the flag, derive
 // tags from GitHub, refresh the site, and let people know in Discord.
 async function publishFromVote(project, counts) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const { rowCount } = await pg.query(
     `UPDATE projects
         SET published = true, published_at = $1
@@ -118,13 +95,11 @@ async function publishFromVote(project, counts) {
     try {
       const thread = await _client.channels.fetch(project.thread_id);
       await thread.send({
-        embeds: [new EmbedBuilder()
-          .setColor(0x788c5d)
-          .setTitle('🌐⠀Published to the CBC website')
-          .setDescription(
-            `**${project.name}** cleared committee voting (👍 ${counts.upvotes} / 👎 ${counts.downvotes}) and is now live in the showcase.`,
-          )
-          .setFooter(brandFooter())],
+        embeds: [modLogEmbed({
+          color: 0x788c5d,
+          title: '🌐⠀Published to the CBC website',
+          description: `**${project.name}** cleared committee voting (👍 ${counts.upvotes} / 👎 ${counts.downvotes}) and is now live in the showcase.`,
+        })],
       });
     } catch (err) {
       logger.warn(`Project ${project.id}: could not post publish notice to thread — ${err.message}`);
@@ -133,16 +108,16 @@ async function publishFromVote(project, counts) {
 
   // Mod log
   if (project.guild_id) {
-    await logToModLog(_client, project.guild_id, new EmbedBuilder()
-      .setColor(0x788c5d)
-      .setTitle('🌐⠀Project Published')
-      .addFields(
-        { name: 'Project',     value: project.name,                                    inline: true },
-        { name: 'Final Vote',   value: `👍 ${counts.upvotes} · 👎 ${counts.downvotes}`, inline: true },
-        { name: 'How',          value: `Auto (net ≥ ${PUBLISH_NET_THRESHOLD})`,          inline: true },
-        { name: 'Tags',         value: tags.length ? tags.join(', ') : '—',              inline: false },
-      )
-      .setFooter(brandFooter())).catch(() => {});
+    await logToModLog(_client, project.guild_id, modLogEmbed({
+      color: 0x788c5d,
+      title: '🌐⠀Project Published',
+      fields: [
+        { name: 'Project',    value: project.name,                                    inline: true },
+        { name: 'Final Vote', value: `👍 ${counts.upvotes} · 👎 ${counts.downvotes}`, inline: true },
+        { name: 'How',        value: `Auto (net ≥ ${PUBLISH_NET_THRESHOLD})`,          inline: true },
+        { name: 'Tags',       value: tags.length ? tags.join(', ') : '—',              inline: false },
+      ],
+    })).catch(() => {});
   }
 }
 

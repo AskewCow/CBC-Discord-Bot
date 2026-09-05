@@ -9,8 +9,9 @@ const { brandFooter } = require('./embeds');
 const db = require('../database/db');   // SQLite — event_thank_you only
 const pg = require('../database/pg');   // Postgres — events + registrations + organizers
 const logger = require('./logger');
-const config = require('./config');
-const { CONFIG_KEYS } = require('../constants');
+const { logToModLog } = require('./modLog');
+const { mentionList, dmUsers } = require('./discord');
+const { nowSec } = require('./time');
 const { revalidateWebsite } = require('./websiteRevalidate');
 
 // ── Anthropic brand colours per event type ────────────────────────────────────
@@ -29,6 +30,8 @@ const EVENT_TYPE_LABELS = {
   committee_meeting: 'Committee Meeting',
   tabling:           'Tabling',
 };
+
+const eventColor = (event) => EVENT_COLORS[event.type] || 0x5865f2;
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -62,12 +65,10 @@ async function recountEvent(eventId) {
 }
 
 function buildEventEmbed(event, organizers, participantCount, ended = false) {
-  const color = EVENT_COLORS[event.type] || 0x5865f2;
-  const organizerMentions = organizers.length
-    ? organizers.map(id => `<@${id}>`).join(', ')
-    : 'N/A';
+  const color = eventColor(event);
+  const organizerMentions = mentionList(organizers);
 
-  const now    = Math.floor(Date.now() / 1000);
+  const now    = nowSec();
   const endsAt = event.starts_at + (event.duration_minutes || 0) * 60;
   const isEnded   = ended || now >= endsAt;
   const isOngoing = !isEnded && now >= event.starts_at;
@@ -144,10 +145,8 @@ function buildAttendanceRow(eventId, disabled = false) {
 }
 
 function buildRegistrationDMEmbed(event, organizers) {
-  const color = EVENT_COLORS[event.type] || 0x5865f2;
-  const organizerMentions = organizers.length
-    ? organizers.map(id => `<@${id}>`).join(', ')
-    : 'N/A';
+  const color = eventColor(event);
+  const organizerMentions = mentionList(organizers);
 
   return new EmbedBuilder()
     .setColor(color)
@@ -204,24 +203,7 @@ async function notifyOrganizers(client, event, userTag, totalCount, action, orga
     )
     .setFooter(brandFooter('CBC Events'));
 
-  for (const userId of notifyIds) {
-    try {
-      const user = await client.users.fetch(userId);
-      await user.send({ embeds: [embed] });
-    } catch (err) {
-      logger.warn(`Could not notify organizer ${userId}: ${err.message}`);
-    }
-  }
-}
-
-async function logToModLog(client, guildId, embed, files = []) {
-  const channelIds = config.getValues(guildId, CONFIG_KEYS.MOD_LOG_CHANNEL);
-  if (!channelIds.length) return;
-  const channel = await client.channels.fetch(channelIds[0]).catch(() => null);
-  if (!channel) return;
-  await channel.send({ embeds: [embed], files }).catch(err =>
-    logger.warn(`Could not post to mod log: ${err.message}`)
-  );
+  await dmUsers(client, notifyIds, { embeds: [embed] }, 'event update');
 }
 
 // ── Button handlers ───────────────────────────────────────────────────────────
@@ -229,7 +211,7 @@ async function logToModLog(client, guildId, embed, files = []) {
 async function handleRegister(interaction) {
   const eventId = parseInt(interaction.customId.split(':')[2]);
   const userId  = interaction.user.id;
-  const now     = Math.floor(Date.now() / 1000);
+  const now     = nowSec();
 
   const event = await pg.get('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!event) {
@@ -398,7 +380,7 @@ async function handleAttend(interaction) {
       .setFooter(brandFooter('CBC Events'));
   } else {
     responseEmbed = new EmbedBuilder()
-      .setColor(EVENT_COLORS[event.type] || 0x5865f2)
+      .setColor(eventColor(event))
       .setTitle(`👋⠀${event.name}`)
       .setDescription("Hope to see you next time! Don't worry about missing this one.")
       .setFooter(brandFooter('CBC Events'));
@@ -417,7 +399,7 @@ async function handleAttend(interaction) {
     .addFields(
       { name: 'User',          value: `<@${userId}>`,                                      inline: true  },
       { name: 'Attended',      value: answer === 'yes' ? 'Yes ✅' : 'No ❌',              inline: true  },
-      { name: 'Organiser(s)',  value: organizers.map(id => `<@${id}>`).join(', ') || 'N/A', inline: false },
+      { name: 'Organiser(s)',  value: mentionList(organizers), inline: false },
     )
     .setFooter(brandFooter('CBC Events'));
 
@@ -437,7 +419,6 @@ module.exports = {
   buildRegistrationDMEmbed,
   updateEventEmbed,
   notifyOrganizers,
-  logToModLog,
   handleRegister,
   handleWithdraw,
   handleAttend,

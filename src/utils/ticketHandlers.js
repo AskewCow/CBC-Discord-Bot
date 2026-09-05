@@ -1,11 +1,10 @@
 const { EmbedBuilder, MessageFlags } = require('discord.js');
-const { brandFooter } = require('./embeds');
-const { errorEmbed } = require('./embeds');
+const { brandFooter, errorEmbed } = require('./embeds');
 const logger = require('./logger');
 const ticketUtil = require('./ticket');
 const { runFlow, resumeAfterYesNo } = require('./ticketFlow');
 const { generateTranscript } = require('./ticketTranscript');
-const { logToModLog } = require('./eventHandlers');
+const { logToModLog } = require('./modLog');
 const { isMod } = require('./permissions');
 
 // ─── Select menu: user opens a ticket ────────────────────────────────────────

@@ -1,5 +1,22 @@
+// Every configurable setting, its storage key, and what kind of value it holds.
+// This is the single source of truth — the CONFIG_KEYS map, the /setup-* choice
+// list, and the kind Sets below are all derived from it.
+const SETUP_SETTINGS = [
+  { name: 'Announcements Channel',   key: 'announcements_channel',   kind: 'channel'  },
+  { name: 'Mod Log Channel',         key: 'mod_log_channel',         kind: 'channel'  },
+  { name: 'Projects Channel',        key: 'projects_channel',        kind: 'channel'  },
+  { name: 'Projects Review Channel', key: 'projects_review_channel', kind: 'channel'  },
+  { name: 'Events Channel',          key: 'events_channel',          kind: 'channel'  },
+  { name: 'General Channel',         key: 'general_channel',         kind: 'channel'  },
+  { name: 'FAQ Channel',             key: 'faq_channel',             kind: 'channel'  },
+  { name: 'Ticket Panel Channel',    key: 'ticket_channel',          kind: 'channel'  },
+  { name: 'Ticket Category',         key: 'ticket_category',         kind: 'category' },
+  { name: 'Committee Role',          key: 'committee_role',          kind: 'role'     },
+  { name: 'Ambassador Role',         key: 'ambassador_role',         kind: 'role'     },
+  { name: 'Member Role',             key: 'member_role',             kind: 'role'     },
+];
+
 const CONFIG_KEYS = {
-  // channels
   ANNOUNCEMENTS_CHANNEL:   'announcements_channel',
   MOD_LOG_CHANNEL:         'mod_log_channel',
   PROJECTS_CHANNEL:        'projects_channel',
@@ -8,49 +25,35 @@ const CONFIG_KEYS = {
   GENERAL_CHANNEL:         'general_channel',
   FAQ_CHANNEL:             'faq_channel',
   TICKET_CHANNEL:          'ticket_channel',
-  // categories
   TICKET_CATEGORY:         'ticket_category',
-  // roles
   COMMITTEE_ROLE:          'committee_role',
   AMBASSADOR_ROLE:         'ambassador_role',
   MEMBER_ROLE:             'member_role',
 };
 
-// Shared choice list for /setup-add and /setup-remove
-const SETUP_CHOICES = [
-  { name: 'Announcements Channel',    value: 'announcements_channel'   },
-  { name: 'Mod Log Channel',          value: 'mod_log_channel'         },
-  { name: 'Projects Channel',         value: 'projects_channel'        },
-  { name: 'Projects Review Channel',  value: 'projects_review_channel' },
-  { name: 'Events Channel',           value: 'events_channel'          },
-  { name: 'General Channel',          value: 'general_channel'         },
-  { name: 'FAQ Channel',              value: 'faq_channel'             },
-  { name: 'Ticket Panel Channel',     value: 'ticket_channel'          },
-  { name: 'Ticket Category',          value: 'ticket_category'         },
-  { name: 'Committee Role',           value: 'committee_role'          },
-  { name: 'Ambassador Role',          value: 'ambassador_role'         },
-  { name: 'Member Role',              value: 'member_role'             },
-];
+// Choice list for /setup-add and /setup-remove ({ name, value } pairs).
+const SETUP_CHOICES = SETUP_SETTINGS.map(({ name, key }) => ({ name, value: key }));
 
-const CHANNEL_KEYS = new Set([
-  'announcements_channel',
-  'mod_log_channel',
-  'projects_channel',
-  'projects_review_channel',
-  'events_channel',
-  'general_channel',
-  'faq_channel',
-  'ticket_channel',
-]);
+const keysOfKind = (kind) =>
+  new Set(SETUP_SETTINGS.filter((s) => s.kind === kind).map((s) => s.key));
 
-const CATEGORY_KEYS = new Set([
-  'ticket_category',
-]);
+const CHANNEL_KEYS  = keysOfKind('channel');
+const CATEGORY_KEYS = keysOfKind('category');
+const ROLE_KEYS     = keysOfKind('role');
 
-const ROLE_KEYS = new Set([
-  'committee_role',
-  'ambassador_role',
-  'member_role',
-]);
+// setup key → 'channel' | 'category' | 'role'
+const KIND_BY_KEY = Object.fromEntries(SETUP_SETTINGS.map((s) => [s.key, s.kind]));
 
-module.exports = { CONFIG_KEYS, SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS };
+const DEFAULT_EVENT_THANKYOU =
+  'Thank you for attending! We hope to see you at our next event.';
+
+module.exports = {
+  CONFIG_KEYS,
+  SETUP_SETTINGS,
+  SETUP_CHOICES,
+  CHANNEL_KEYS,
+  CATEGORY_KEYS,
+  ROLE_KEYS,
+  KIND_BY_KEY,
+  DEFAULT_EVENT_THANKYOU,
+};

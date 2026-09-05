@@ -1,7 +1,6 @@
 const {
   SlashCommandBuilder,
   PermissionFlagsBits,
-  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
@@ -11,16 +10,18 @@ const {
 const pg = require('../../database/pg');
 const config = require('../../utils/config');
 const { CONFIG_KEYS } = require('../../constants');
-const { successEmbed, errorEmbed, brandFooter } = require('../../utils/embeds');
+const { successEmbed, errorEmbed } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
+const { logToModLog, modLogEmbed } = require('../../utils/modLog');
+const { mentionList } = require('../../utils/discord');
+const { nowSec } = require('../../utils/time');
 const {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
   formatDuration,
   buildEventEmbed,
   buildRegisterRow,
-  logToModLog,
   recountEvent,
 } = require('../../utils/eventHandlers');
 
@@ -105,7 +106,7 @@ module.exports = {
       });
     }
 
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     if (startsAt <= now) {
       return interaction.reply({
         embeds: [errorEmbed('Invalid date/time', 'The event must be scheduled in the future.')],
@@ -196,7 +197,7 @@ module.exports = {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
 
     const { rows: [{ id: eventId }] } = await pg.query(
       `INSERT INTO events
@@ -250,20 +251,20 @@ module.exports = {
       await eventsChannel.send('@everyone');
     }
 
-    const organizerMentions = organizerIds.map(id => `<@${id}>`).join(', ');
-    const logEmbed = new EmbedBuilder()
-      .setColor(EVENT_COLORS[type] || 0x5865f2)
-      .setTitle(`✨⠀New Event Created: ${name}`)
-      .addFields(
+    const logEmbed = modLogEmbed({
+      color: EVENT_COLORS[type] || 0x5865f2,
+      title: `✨⠀New Event Created: ${name}`,
+      footer: 'CBC Events',
+      fields: [
         { name: 'Type',         value: EVENT_TYPE_LABELS[type] || type,  inline: true  },
         { name: 'Location',     value: location,                          inline: true  },
         { name: 'Time',         value: `<t:${startsAt}:F>`,              inline: true  },
         { name: 'Duration',     value: formatDuration(duration),          inline: true  },
-        { name: 'Organiser(s)', value: organizerMentions,                 inline: false },
+        { name: 'Organiser(s)', value: mentionList(organizerIds),         inline: false },
         { name: 'Created by',   value: `<@${interaction.user.id}>`,       inline: true  },
         { name: 'Ping sent',    value: ping ? 'Yes' : 'No',              inline: true  },
-      )
-      .setFooter(brandFooter('CBC Events'));
+      ],
+    });
 
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 

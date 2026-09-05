@@ -15,7 +15,7 @@ const cfg = require('./config');
 const { CONFIG_KEYS } = require('../constants');
 const logger = require('./logger');
 const backupConfig = require('./backupConfig');
-const { logToModLog } = require('./eventHandlers');
+const { logToModLog } = require('./modLog');
 const { mentionConfigured } = require('./mentions');
 
 const execFileAsync = promisify(execFile);
