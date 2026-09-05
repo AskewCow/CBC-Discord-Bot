@@ -29,7 +29,7 @@ module.exports = {
         .setName('channel')
         .setDescription('Channel to add (for text channel settings)')
         .setRequired(false)
-        .addChannelTypes(ChannelType.GuildText)
+        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
     )
     .addChannelOption(opt =>
       opt
