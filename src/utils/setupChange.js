@@ -62,8 +62,16 @@ async function runSetupChange(interaction, mode, valueName) {
       : reply(errorEmbed('Missing value', `Provide a ${kind} to remove from **${label}**.`));
   }
 
-  const provided = channel ?? category ?? role;
-  const providedKind = role ? 'role' : category ? 'category' : 'channel';
+  const given = [
+    ['channel', channel],
+    ['category', category],
+    ['role', role],
+  ].filter(([, v]) => v);
+  if (given.length > 1) {
+    return reply(errorEmbed('One at a time', 'Provide only one of `channel`, `category` or `role`.'));
+  }
+
+  const [providedKind, provided] = given[0];
   if (providedKind !== kind) {
     return reply(
       errorEmbed('Wrong type', `**${label}** stores ${KIND_WORD[kind]}. Use the \`${kind}\` option.`),
