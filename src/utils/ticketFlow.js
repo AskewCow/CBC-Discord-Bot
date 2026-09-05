@@ -6,6 +6,7 @@ const {
   buildYesNoRow,
   buildDisabledYesNoRow,
 } = require('./ticket');
+const { stepsAfter } = require('./stepFlow');
 
 // Run all flow steps for a ticket from the beginning
 async function runFlow(channel, ticket) {
@@ -29,11 +30,7 @@ async function resumeAfterYesNo(interaction, ticket, stepId, choice) {
   }
 
   // Continue with any remaining steps after this one
-  const allSteps = getFlowSteps(step.option_id);
-  const remaining = allSteps.filter(
-    s => s.step_order > step.step_order || (s.step_order === step.step_order && s.id > step.id)
-  );
-
+  const remaining = stepsAfter(getFlowSteps(step.option_id), step);
   await _runSteps(interaction.channel, ticket, remaining);
 }
 

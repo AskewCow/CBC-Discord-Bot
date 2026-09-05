@@ -7,14 +7,9 @@ const onb      = require('./onboarding');
 const { nowSec } = require('./time');
 const { CONFIG_KEYS } = require('../constants');
 const { logToModLog } = require('./modLog');
+const { stepsAfter } = require('./stepFlow');
 
 const ONBOARDING_COLOR = 0x57f287;
-
-// Steps that come after `step` in (step_order, id) order — the tail still to run.
-const stepsAfter = (steps, step) =>
-  steps.filter(
-    (s) => s.step_order > step.step_order || (s.step_order === step.step_order && s.id > step.id),
-  );
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 

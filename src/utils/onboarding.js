@@ -1,6 +1,13 @@
 const db = require('../database/db');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { nowSec } = require('./time');
+const { stepTable } = require('./stepFlow');
+
+const steps = stepTable({
+  table: 'onboarding_steps',
+  parentCol: 'flow_id',
+  columns: ['step_type', 'content', 'yes_content', 'no_content', 'stop_on'],
+});
 
 // ─── DB helpers — flows ───────────────────────────────────────────────────────
 
@@ -50,35 +57,12 @@ const upsertQuestionsFlow = (guildId, createdBy) =>
 
 // ─── DB helpers — steps ───────────────────────────────────────────────────────
 
-function getSteps(flowId) {
-  return db
-    .prepare('SELECT * FROM onboarding_steps WHERE flow_id = ? ORDER BY step_order, id')
-    .all(flowId);
-}
-
-function getStep(stepId) {
-  return db.prepare('SELECT * FROM onboarding_steps WHERE id = ?').get(stepId);
-}
-
-function addStep(flowId, stepType, content, yesContent, noContent, stopOn = null) {
-  const { m: maxOrder } = db
-    .prepare('SELECT COALESCE(MAX(step_order), -1) AS m FROM onboarding_steps WHERE flow_id = ?')
-    .get(flowId);
-  return db
-    .prepare(
-      'INSERT INTO onboarding_steps (flow_id, step_order, step_type, content, yes_content, no_content, stop_on) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    )
-    .run(flowId, maxOrder + 1, stepType, content, yesContent || null, noContent || null, stopOn || null)
-    .lastInsertRowid;
-}
-
-function removeStep(stepId) {
-  db.prepare('DELETE FROM onboarding_steps WHERE id = ?').run(stepId);
-}
-
-function clearSteps(flowId) {
-  db.prepare('DELETE FROM onboarding_steps WHERE flow_id = ?').run(flowId);
-}
+const getSteps   = (flowId) => steps.list(flowId);
+const getStep    = (stepId) => steps.get(stepId);
+const addStep    = (flowId, stepType, content, yesContent, noContent, stopOn = null) =>
+  steps.add(flowId, stepType, content, yesContent, noContent, stopOn);
+const removeStep = (stepId) => steps.remove(stepId);
+const clearSteps = (flowId) => steps.clear(flowId);
 
 // ─── DB helpers — sessions ────────────────────────────────────────────────────
 

@@ -1,6 +1,10 @@
 const db = require('../database/db');
 const { brandFooter } = require('./embeds');
 const config = require('./config');
+const { stepTable } = require('./stepFlow');
+const { nowSec } = require('./time');
+const { mentionConfigured } = require('./mentions');
+const { CONFIG_KEYS } = require('../constants');
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -35,7 +39,7 @@ function getOptionsForGuild(guildId) {
 }
 
 function createPanel(guildId, channelId, createdBy, title, description) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   return db
     .prepare(
       'INSERT INTO ticket_panels (guild_id, channel_id, title, description, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -44,7 +48,7 @@ function createPanel(guildId, channelId, createdBy, title, description) {
 }
 
 function updatePanelContent(panelId, title, description) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   db.prepare('UPDATE ticket_panels SET title = ?, description = ?, updated_at = ? WHERE id = ?')
     .run(title, description, now, panelId);
 }
@@ -93,33 +97,18 @@ function removeOption(optionId) {
 
 // ─── DB helpers — flow steps ──────────────────────────────────────────────────
 
-function getFlowSteps(optionId) {
-  return db
-    .prepare('SELECT * FROM ticket_flow_steps WHERE option_id = ? ORDER BY step_order, id')
-    .all(optionId);
-}
+const flowSteps = stepTable({
+  table: 'ticket_flow_steps',
+  parentCol: 'option_id',
+  columns: ['step_type', 'content', 'yes_content', 'no_content'],
+});
 
-function getFlowStep(stepId) {
-  return db.prepare('SELECT * FROM ticket_flow_steps WHERE id = ?').get(stepId);
-}
-
-function addFlowStep(optionId, stepType, content, yesContent, noContent) {
-  const { m: maxOrder } = db
-    .prepare(
-      'SELECT COALESCE(MAX(step_order), -1) AS m FROM ticket_flow_steps WHERE option_id = ?'
-    )
-    .get(optionId);
-  return db
-    .prepare(
-      'INSERT INTO ticket_flow_steps (option_id, step_order, step_type, content, yes_content, no_content) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .run(optionId, maxOrder + 1, stepType, content, yesContent || null, noContent || null)
-    .lastInsertRowid;
-}
-
-function removeFlowStep(stepId) {
-  db.prepare('DELETE FROM ticket_flow_steps WHERE id = ?').run(stepId);
-}
+const getFlowSteps   = (optionId) => flowSteps.list(optionId);
+const getFlowStep    = (stepId) => flowSteps.get(stepId);
+const addFlowStep    = (optionId, stepType, content, yesContent, noContent) =>
+  flowSteps.add(optionId, stepType, content, yesContent, noContent);
+const removeFlowStep = (stepId) => flowSteps.remove(stepId);
+const clearFlowSteps = (optionId) => flowSteps.clear(optionId);
 
 // ─── DB helpers — tickets ─────────────────────────────────────────────────────
 
@@ -142,7 +131,7 @@ function setTicketPendingStep(ticketId, stepId) {
 }
 
 function closeTicket(ticketId) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   db.prepare(
     "UPDATE tickets SET status = 'closed', closed_at = ?, pending_step_id = NULL WHERE id = ?"
   ).run(now, ticketId);
@@ -250,10 +239,7 @@ function renderFlowContent(content, guildId) {
   return content.replace(/\{([a-z-]+)\}/gi, (match, rawToken) => {
     const def = FLOW_PLACEHOLDERS[rawToken.toLowerCase()];
     if (!def) return match;
-    const ids = guildId ? config.getValues(guildId, def.key) : [];
-    if (!ids.length) return def.fallback;
-    const wrap = def.type === 'role' ? id => `<@&${id}>` : id => `<#${id}>`;
-    return ids.map(wrap).join(' ');
+    return mentionConfigured(guildId, def.key, { type: def.type, fallback: def.fallback });
   });
 }
 
@@ -298,12 +284,11 @@ function buildDisabledYesNoRow(chosen) {
 // ─── Channel creation ─────────────────────────────────────────────────────────
 
 async function createTicketChannel(guild, opener, topic, panelId, optionId) {
-  const cfg       = require('./config');
-  const categories       = cfg.getValues(guild.id, 'ticket_category');
-  const ambassadorRoles  = cfg.getValues(guild.id, 'ambassador_role');
-  const commRoles        = cfg.getValues(guild.id, 'committee_role');
+  const categories      = config.getValues(guild.id, CONFIG_KEYS.TICKET_CATEGORY);
+  const ambassadorRoles = config.getValues(guild.id, CONFIG_KEYS.AMBASSADOR_ROLE);
+  const commRoles       = config.getValues(guild.id, CONFIG_KEYS.COMMITTEE_ROLE);
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
 
   // Reserve a row first to get the auto-increment ID for the channel name
   const result = db
@@ -396,6 +381,7 @@ module.exports = {
   getFlowStep,
   addFlowStep,
   removeFlowStep,
+  clearFlowSteps,
   // tickets
   getTicketByChannelId,
   getTicketById,

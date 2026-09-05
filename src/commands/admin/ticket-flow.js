@@ -291,9 +291,7 @@ module.exports = {
         });
       }
 
-      for (const step of steps) {
-        ticketUtil.removeFlowStep(step.id);
-      }
+      ticketUtil.clearFlowSteps(option.id);
 
       return interaction.reply({
         embeds: [
