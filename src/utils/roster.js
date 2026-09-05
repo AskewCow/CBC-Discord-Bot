@@ -7,6 +7,7 @@
 // /nick to their real name.
 
 const pg = require('../database/pg');
+const { nowSec } = require('./time');
 const cfg = require('./config');
 const { CONFIG_KEYS } = require('../constants');
 const logger = require('./logger');
@@ -51,7 +52,7 @@ async function syncRoster(guild) {
     return;
   }
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const seen = new Set();
   const rows = [];
 

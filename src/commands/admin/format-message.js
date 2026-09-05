@@ -8,6 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
+const { nowSec } = require('../../utils/time');
 const { brandFooter, BRAND_FOOTER_TEXT } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const pg = require('../../database/pg');
@@ -195,7 +196,7 @@ module.exports = {
             interaction.member?.displayName ?? interaction.user.username,
             interaction.channelId,
             posted.id,
-            Math.floor(Date.now() / 1000),
+            nowSec(),
           ],
         );
         revalidateWebsite(['announcements']).catch(() => {});

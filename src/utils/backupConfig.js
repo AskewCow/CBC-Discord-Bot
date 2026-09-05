@@ -3,6 +3,7 @@
 // operational settings, not shared "public subgraph" data.
 
 const db = require('../database/db');
+const { nowSec } = require('./time');
 
 function getConfig(guildId) {
   const row = db.prepare('SELECT * FROM backup_config WHERE guild_id = ?').get(guildId);
@@ -19,7 +20,7 @@ function getAllEnabled() {
  * @param {string} updatedBy Discord id of whoever ran the command
  */
 function upsertConfig(guildId, patch, updatedBy) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const existing = db.prepare('SELECT guild_id FROM backup_config WHERE guild_id = ?').get(guildId);
 
   if (existing) {

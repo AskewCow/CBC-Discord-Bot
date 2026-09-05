@@ -1,4 +1,7 @@
 const db = require('./db');
+const { DEFAULT_EVENT_THANKYOU } = require('../constants');
+
+const sqlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 // This file owns the bot's *internal* SQLite tables only: config, invite
 // tracking, tickets, onboarding, and the per-guild post-event message.
@@ -191,7 +194,7 @@ function runSchema() {
 
     CREATE TABLE IF NOT EXISTS event_thank_you (
       guild_id  TEXT PRIMARY KEY,
-      message   TEXT NOT NULL DEFAULT 'Thank you for attending! We hope to see you at our next event.',
+      message   TEXT NOT NULL DEFAULT ${sqlStr(DEFAULT_EVENT_THANKYOU)},
       link_text TEXT,
       link_url  TEXT
     );

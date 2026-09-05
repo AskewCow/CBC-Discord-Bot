@@ -8,7 +8,6 @@ const NORMALISE = {
   "c++": "cpp",
   "c#": "csharp",
   "jupyter notebook": "jupyter",
-  "objective-c": "objective-c",
 };
 
 function clean(tag) {

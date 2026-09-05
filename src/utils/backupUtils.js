@@ -4,18 +4,18 @@
 // and replacing data/bot.db with the downloaded .db file (bot stopped).
 
 const { execFile } = require('child_process');
-const { brandFooter } = require('./embeds');
 const { promisify } = require('util');
 const os = require('os');
 const path = require('path');
 const fs = require('fs/promises');
-const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { AttachmentBuilder } = require('discord.js');
 const db = require('../database/db');
 const cfg = require('./config');
 const { CONFIG_KEYS } = require('../constants');
 const logger = require('./logger');
+const { nowSec } = require('./time');
 const backupConfig = require('./backupConfig');
-const { logToModLog } = require('./modLog');
+const { logToModLog, modLogEmbed } = require('./modLog');
 const { mentionConfigured } = require('./mentions');
 
 const execFileAsync = promisify(execFile);
@@ -111,7 +111,7 @@ async function runBackup(client, guild) {
     }
   }
 
-  backupConfig.markRun(guild.id, Math.floor(Date.now() / 1000));
+  backupConfig.markRun(guild.id, nowSec());
   logger.info(`Backup for guild ${guild.id}: sent to ${sent}/${recipients.length} ambassador(s)`);
 
   const ambassadorMention = mentionConfigured(guild.id, CONFIG_KEYS.AMBASSADOR_ROLE, {
@@ -122,11 +122,10 @@ async function runBackup(client, guild) {
   await logToModLog(
     client,
     guild.id,
-    new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('🗄️⠀Backup sent')
-      .setDescription(`Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`)
-      .setFooter(brandFooter()),
+    modLogEmbed({
+      title: '🗄️⠀Backup sent',
+      description: `Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`,
+    }),
   ).catch(() => {});
 
   return { recipients: recipients.length, sent, failed: failed.length };

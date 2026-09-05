@@ -1,10 +1,14 @@
 require('dotenv').config();
 
-const { BOT_TOKEN, CLIENT_ID, GUILD_ID } = process.env;
-if (!BOT_TOKEN || !CLIENT_ID || !GUILD_ID) {
-  console.error('Missing required env vars: BOT_TOKEN, CLIENT_ID, GUILD_ID');
+// DATABASE_URL is required too: members, projects, events and announcements all
+// live in Postgres, so the bot is not meaningfully functional without it.
+const REQUIRED_ENV = ['BOT_TOKEN', 'CLIENT_ID', 'GUILD_ID', 'DATABASE_URL'];
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error(`Missing required env vars: ${missing.join(', ')}`);
   process.exit(1);
 }
+const { BOT_TOKEN } = process.env;
 
 const {
   Client,

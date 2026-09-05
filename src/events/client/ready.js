@@ -1,4 +1,5 @@
 const { Events } = require('discord.js');
+const { nowSec } = require('../../utils/time');
 const db             = require('../../database/db');   // SQLite — invites
 const pg             = require('../../database/pg');   // Postgres — members
 const logger         = require('../../utils/logger');
@@ -37,7 +38,7 @@ async function reconcileDepartedMembers(guild) {
   try {
     const guildMembers = await guild.members.fetch();
     const currentIds   = [...guildMembers.keys()];
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
 
     // Mark anyone still flagged present in the DB who is no longer in the guild.
     await pg.query(

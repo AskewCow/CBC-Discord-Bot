@@ -7,7 +7,7 @@ const {
 const { brandFooter } = require('../../utils/embeds');
 const { requireAmbassador }            = require('../../utils/permissions');
 const { getLeaderboard, createLeaderboard, deleteLeaderboard } = require('../../utils/inviteUtils');
-const { logToModLog }             = require('../../utils/modLog');
+const { logToModLog, modLogEmbed }   = require('../../utils/modLog');
 const { CONFIG_KEYS }             = require('../../constants');
 const config                      = require('../../utils/config');
 
@@ -128,18 +128,15 @@ async function logLeaderboard(interaction, scope, includeCommittee, rows, starte
     ? `Live (started <t:${Math.floor(startedAt / 1000)}:R>)`
     : 'All Time';
 
-  const logEmbed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('📊 Invite Leaderboard Generated')
-    .addFields(
+  await logToModLog(interaction.client, interaction.guild.id, modLogEmbed({
+    title: '📊 Invite Leaderboard Generated',
+    fields: [
       { name: 'Requested by', value: `<@${interaction.user.id}>`,               inline: true },
       { name: 'Scope',        value: scopeLabel,                                 inline: true },
       { name: 'Committee',    value: includeCommittee ? 'Included' : 'Excluded', inline: true },
       { name: 'Top 3',        value: top3 },
-    )
-    .setFooter(brandFooter());
-
-  await logToModLog(interaction.client, interaction.guild.id, logEmbed);
+    ],
+  }));
 }
 
 // ── Exported helper: rebuild + edit a live leaderboard message ────────────────

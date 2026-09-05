@@ -12,7 +12,12 @@ const logger = require('./logger');
 const { logToModLog } = require('./modLog');
 const { mentionList, dmUsers } = require('./discord');
 const { nowSec } = require('./time');
+const { DEFAULT_EVENT_THANKYOU } = require('../constants');
 const { revalidateWebsite } = require('./websiteRevalidate');
+
+// Zero-width space — used as an invisible field name/value to force a new row
+// in Discord's 3-per-row inline grid.
+const SPACER = '​';
 
 // ── Anthropic brand colours per event type ────────────────────────────────────
 const EVENT_COLORS = {
@@ -88,11 +93,11 @@ function buildEventEmbed(event, organizers, participantCount, ended = false) {
     .addFields(
       { name: 'Type',         value: EVENT_TYPE_LABELS[event.type] || event.type, inline: true },
       { name: 'Location',     value: event.location || 'TBD',                     inline: true },
-      { name: '​',       value: '​',                                    inline: true },
+      { name: SPACER,         value: SPACER,                                     inline: true },
       { name: 'Organiser(s)', value: organizerMentions,                           inline: false },
       { name: 'Time',         value: timeValue,                                   inline: true },
       { name: 'Duration',     value: formatDuration(event.duration_minutes),      inline: true },
-      { name: '​',       value: '​',                                    inline: true },
+      { name: SPACER,         value: SPACER,                                     inline: true },
       { name: 'Participants', value: `${participantCount}`,                       inline: true },
     )
     .setFooter(brandFooter(isEnded ? 'This event has ended.' : 'CBC Events'));
@@ -365,7 +370,7 @@ async function handleAttend(interaction) {
   }
 
   const thankYou = db.prepare('SELECT * FROM event_thank_you WHERE guild_id = ?').get(event.guild_id);
-  const thankMsg = thankYou?.message || 'Thank you for attending! We hope to see you at our next event.';
+  const thankMsg = thankYou?.message || DEFAULT_EVENT_THANKYOU;
 
   let responseEmbed;
   if (answer === 'yes') {

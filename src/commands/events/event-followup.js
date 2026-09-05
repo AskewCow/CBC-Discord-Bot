@@ -2,6 +2,16 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('disc
 const db = require('../../database/db');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
+const { DEFAULT_EVENT_THANKYOU } = require('../../constants');
+
+const getThankYou = (guildId) =>
+  db.prepare('SELECT * FROM event_thank_you WHERE guild_id = ?').get(guildId);
+
+const summarise = (message, linkText, linkUrl) => {
+  const lines = [`**Message:** ${message}`];
+  if (linkText && linkUrl) lines.push(`**Link:** [${linkText}](${linkUrl})`);
+  return lines.join('\n');
+};
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,30 +34,22 @@ module.exports = {
     const message  = interaction.options.getString('message');
     const linkText = interaction.options.getString('link_text');
     const linkUrl  = interaction.options.getString('link_url');
+    const current  = getThankYou(interaction.guildId);
 
-    // No options — show current config
+    // No options — show current config.
     if (!message && !linkText && !linkUrl) {
-      const current = db.prepare('SELECT * FROM event_thank_you WHERE guild_id = ?').get(interaction.guildId);
-      if (!current) {
-        return interaction.reply({
-          embeds: [infoEmbed(
-            'Post-event follow-up message',
-            'No custom message set. Default:\n\n*Thank you for attending! We hope to see you at our next event.*',
-          )],
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-      const lines = [`**Message:** ${current.message}`];
-      if (current.link_text && current.link_url) {
-        lines.push(`**Link:** [${current.link_text}](${current.link_url})`);
-      }
       return interaction.reply({
-        embeds: [infoEmbed('Current post-event follow-up message', lines.join('\n'))],
+        embeds: [current
+          ? infoEmbed('Current post-event follow-up message', summarise(current.message, current.link_text, current.link_url))
+          : infoEmbed(
+              'Post-event follow-up message',
+              `No custom message set. Default:\n\n*${DEFAULT_EVENT_THANKYOU}*`,
+            )],
         flags: MessageFlags.Ephemeral,
       });
     }
 
-    // Validate URL if provided
+    // Validate URL if provided.
     if (linkUrl) {
       try { new URL(linkUrl); } catch {
         return interaction.reply({
@@ -57,8 +59,7 @@ module.exports = {
       }
     }
 
-    const current     = db.prepare('SELECT * FROM event_thank_you WHERE guild_id = ?').get(interaction.guildId);
-    const newMessage  = message  ?? current?.message  ?? 'Thank you for attending! We hope to see you at our next event.';
+    const newMessage  = message  ?? current?.message   ?? DEFAULT_EVENT_THANKYOU;
     const newLinkText = linkText ?? current?.link_text ?? null;
     const newLinkUrl  = linkUrl  ?? current?.link_url  ?? null;
 
@@ -71,11 +72,8 @@ module.exports = {
         link_url  = excluded.link_url
     `).run(interaction.guildId, newMessage, newLinkText, newLinkUrl);
 
-    const lines = [`**Message:** ${newMessage}`];
-    if (newLinkText && newLinkUrl) lines.push(`**Link:** [${newLinkText}](${newLinkUrl})`);
-
     return interaction.reply({
-      embeds: [successEmbed('Post-event follow-up message updated', lines.join('\n'))],
+      embeds: [successEmbed('Post-event follow-up message updated', summarise(newMessage, newLinkText, newLinkUrl))],
       flags: MessageFlags.Ephemeral,
     });
   },

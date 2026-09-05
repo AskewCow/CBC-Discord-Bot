@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { brandFooter } = require('../../utils/embeds');
 const config = require('../../utils/config');
+const { CONFIG_KEYS } = require('../../constants');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -8,7 +9,7 @@ module.exports = {
     .setDescription('Find out where to open a support ticket'),
 
   async execute(interaction) {
-    const channelIds = config.getValues(interaction.guildId, 'ticket_channel');
+    const channelIds = config.getValues(interaction.guildId, CONFIG_KEYS.TICKET_CHANNEL);
 
     const description = channelIds.length
       ? `Head to ${channelIds.map(id => `<#${id}>`).join(' or ')} and use the dropdown menu to open a support ticket.`

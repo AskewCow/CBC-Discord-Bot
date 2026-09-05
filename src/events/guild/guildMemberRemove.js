@@ -1,4 +1,5 @@
 const { Events } = require('discord.js');
+const { nowSec } = require('../../utils/time');
 const pg     = require('../../database/pg');
 const logger = require('../../utils/logger');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
@@ -9,7 +10,7 @@ module.exports = {
   once: false,
   async execute(member) {
     logger.info(`Member left: ${member.user.tag} (${member.id})`);
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     await pg.query('UPDATE members SET left_at = $1 WHERE discord_id = $2', [now, member.id])
       .catch(err => logger.warn(`Could not mark ${member.id} as left: ${err.message}`));
     revalidateWebsite(['stats']).catch(() => {});

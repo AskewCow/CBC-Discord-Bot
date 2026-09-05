@@ -1,4 +1,5 @@
 const db = require('../database/db');
+const { nowSec } = require('./time');
 
 function getValues(guildId, key) {
   return db
@@ -8,7 +9,7 @@ function getValues(guildId, key) {
 }
 
 function addValue(guildId, key, value) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSec();
   const result = db
     .prepare('INSERT OR IGNORE INTO config (guild_id, key, value, added_at) VALUES (?, ?, ?, ?)')
     .run(guildId, key, String(value), now);

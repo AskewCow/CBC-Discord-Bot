@@ -6,13 +6,14 @@ const {
   TextInputStyle,
   ActionRowBuilder,
 } = require('discord.js');
-const { EmbedBuilder } = require('discord.js');
 const pg     = require('../../database/pg');
 const config = require('../../utils/config');
 const logger = require('../../utils/logger');
-const { errorEmbed, successEmbed, brandFooter } = require('../../utils/embeds');
+const { nowSec } = require('../../utils/time');
+const { CONFIG_KEYS } = require('../../constants');
+const { errorEmbed, successEmbed } = require('../../utils/embeds');
 const { buildProjectEmbed, buildVoteRow } = require('../../utils/projectUtils');
-const { logToModLog } = require('../../utils/eventHandlers');
+const { logToModLog, modLogEmbed } = require('../../utils/modLog');
 const { requireMember } = require('../../utils/permissions');
 
 // Keyed by userId; holds built_with + thumbnail URL until modal submits
@@ -52,12 +53,12 @@ module.exports = {
     if (!(await requireMember(interaction))) return;
 
     // Cooldown: reject if this user submitted within the window.
-    const nowSec = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     const last = await pg.get(
       'SELECT max(submitted_at) AS ts FROM projects WHERE submitted_by = $1',
       [interaction.user.id],
     );
-    if (last?.ts && nowSec - last.ts < SUBMIT_COOLDOWN_SECONDS) {
+    if (last?.ts && now - last.ts < SUBMIT_COOLDOWN_SECONDS) {
       const readyAt = last.ts + SUBMIT_COOLDOWN_SECONDS;
       return interaction.reply({
         embeds: [errorEmbed(
@@ -135,12 +136,12 @@ module.exports = {
     }
 
     const guildId      = interaction.guildId;
-    const now          = Math.floor(Date.now() / 1000);
+    const now          = nowSec();
     const voteEndsAt   = now + 7 * 24 * 3600;
     const submitterTag = interaction.user.username;
 
-    const [projectsChannelId] = config.getValues(guildId, 'projects_channel');
-    const [reviewChannelId]   = config.getValues(guildId, 'projects_review_channel');
+    const [projectsChannelId] = config.getValues(guildId, CONFIG_KEYS.PROJECTS_CHANNEL);
+    const [reviewChannelId]   = config.getValues(guildId, CONFIG_KEYS.PROJECTS_REVIEW_CHANNEL);
 
     if (!projectsChannelId) {
       return interaction.editReply({
@@ -153,35 +154,27 @@ module.exports = {
       });
     }
 
-    // Insert project row first to get the ID
-    const { rows: [inserted] } = await pg.query(
+    // Insert the row and work from what the DB actually stored, so the embed
+    // can't drift from the persisted project.
+    const { rows: [project] } = await pg.query(
       `INSERT INTO projects
          (name, description, github_url, builder_name, submitted_by, submitter_tag,
           submitted_at, thumbnail_url, built_with, guild_id, vote_ends_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING id`,
+       RETURNING *`,
       [
         name, description, githubUrl, submitterTag,
         interaction.user.id, submitterTag, now,
         thumbUrl || null, builtWith, guildId, voteEndsAt,
       ],
     );
-
-    const projectId = inserted.id;
-
-    const projectData = {
-      id: projectId, name, description,
-      github_url: githubUrl,
-      submitted_by: interaction.user.id, submitter_tag: submitterTag,
-      built_with: builtWith, thumbnail_url: thumbUrl || null,
-      submitted_at: now, vote_ends_at: voteEndsAt,
-    };
+    const projectId = project.id;
 
     try {
       // ── Public projects channel ──────────────────────────────────────────────
       const projectsChannel = await interaction.client.channels.fetch(projectsChannelId);
       const publicMsg = await projectsChannel.send({
-        embeds: [buildProjectEmbed(projectData)],
+        embeds: [buildProjectEmbed(project)],
       });
 
       const thread = await publicMsg.startThread({
@@ -192,7 +185,7 @@ module.exports = {
       // ── Review channel ───────────────────────────────────────────────────────
       const reviewChannel = await interaction.client.channels.fetch(reviewChannelId);
       const reviewMsg = await reviewChannel.send({
-        embeds: [buildProjectEmbed(projectData, { forReview: true, counts: { upvotes: 0, downvotes: 0 } })],
+        embeds: [buildProjectEmbed(project, { forReview: true, counts: { upvotes: 0, downvotes: 0 } })],
         components: [buildVoteRow(projectId)],
       });
 
@@ -204,16 +197,15 @@ module.exports = {
       );
 
       // ── Mod log ──────────────────────────────────────────────────────────────
-      const logEmbed = new EmbedBuilder()
-        .setColor(0xdd7659)
-        .setTitle('📁⠀Project Submitted')
-        .addFields(
-          { name: 'Project',     value: name,                            inline: true  },
-          { name: 'Submitted By', value: `<@${interaction.user.id}>`,   inline: true  },
-          { name: 'Description', value: description.slice(0, 1024),     inline: false },
-        )
-        .setFooter(brandFooter());
-      await logToModLog(interaction.client, guildId, logEmbed);
+      await logToModLog(interaction.client, guildId, modLogEmbed({
+        color: 0xdd7659,
+        title: '📁⠀Project Submitted',
+        fields: [
+          { name: 'Project',      value: name,                        inline: true  },
+          { name: 'Submitted By', value: `<@${interaction.user.id}>`, inline: true  },
+          { name: 'Description',  value: description.slice(0, 1024),   inline: false },
+        ],
+      }));
 
       logger.info(`Project ${projectId} (${name}) submitted by ${interaction.user.id}`);
 
