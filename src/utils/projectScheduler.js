@@ -1,6 +1,7 @@
 const pg     = require('../database/pg');
 const logger = require('./logger');
 const { nowSec } = require('./time');
+const { makeScheduler } = require('./scheduler');
 const { getVoteCounts, refreshReviewMessage } = require('./projectHandlers');
 const { deriveTagsFromGitHub } = require('./githubTags');
 const { revalidateWebsite } = require('./websiteRevalidate');
@@ -12,21 +13,8 @@ const PUBLISH_NET_THRESHOLD = 3;
 
 let _client = null;
 
-function start(client) {
+async function closeExpiredVotes(client, now) {
   _client = client;
-  tick();
-  setInterval(tick, 5 * 60_000); // check every 5 minutes
-}
-
-async function tick() {
-  if (!_client?.isReady()) return;
-  const now = nowSec();
-  await closeExpiredVotes(now).catch(err =>
-    logger.error(`Project vote close tick error: ${err.message}`, err)
-  );
-}
-
-async function closeExpiredVotes(now) {
   const expired = await pg.all(
     `SELECT * FROM projects
       WHERE vote_closed = false
@@ -120,5 +108,12 @@ async function publishFromVote(project, counts) {
     })).catch(() => {});
   }
 }
+
+const { start } = makeScheduler({
+  name: 'project-vote',
+  intervalMs: 5 * 60_000,
+  firstDelayMs: 10_000,
+  job: closeExpiredVotes,
+});
 
 module.exports = { start, PUBLISH_NET_THRESHOLD };

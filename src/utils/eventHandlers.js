@@ -409,6 +409,7 @@ async function handleAttend(interaction) {
 module.exports = {
   EVENT_COLORS,
   EVENT_TYPE_LABELS,
+  eventColor,
   formatDuration,
   recountEvent,
   buildEventEmbed,

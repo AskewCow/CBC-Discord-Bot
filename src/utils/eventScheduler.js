@@ -1,29 +1,19 @@
-const { EmbedBuilder } = require('discord.js');
-const { brandFooter } = require('./embeds');
 const pg = require('../database/pg');
 const logger = require('./logger');
+const { makeScheduler } = require('./scheduler');
+const { mentionList, dmUsers } = require('./discord');
+const { logToModLog, modLogEmbed } = require('./modLog');
 const {
-  EVENT_COLORS,
+  eventColor,
   formatDuration,
   buildAttendanceRow,
   updateEventEmbed,
-  logToModLog,
 } = require('./eventHandlers');
 
-let _client = null;
-
-function start(client) {
-  _client = client;
-  tick();
-  setInterval(tick, 60_000);
-}
-
-async function tick() {
-  if (!_client?.isReady()) return;
-  const now = Math.floor(Date.now() / 1000);
-  await sendReminders(now).catch(err => logger.error(`Reminder tick error: ${err.message}`, err));
-  await handleOngoingEvents(now).catch(err => logger.error(`Ongoing tick error: ${err.message}`, err));
-  await handleEndedEvents(now).catch(err => logger.error(`Post-event tick error: ${err.message}`, err));
+async function tick(client, now) {
+  await sendReminders(client, now).catch(err => logger.error(`Reminder tick error: ${err.message}`, err));
+  await handleOngoingEvents(client, now).catch(err => logger.error(`Ongoing tick error: ${err.message}`, err));
+  await handleEndedEvents(client, now).catch(err => logger.error(`Post-event tick error: ${err.message}`, err));
 }
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
@@ -46,7 +36,7 @@ async function markReminderSent(eventId, type) {
   );
 }
 
-async function sendReminders(now) {
+async function sendReminders(client, now) {
   const pending = await pg.all(
     `SELECT e.*, er.type AS reminder_type
        FROM events e
@@ -75,29 +65,28 @@ async function sendReminders(now) {
       ? `⏰⠀Reminder: ${reminder.name} is tomorrow!`
       : `⏰⠀Reminder: ${reminder.name} is starting in 1 hour!`;
 
-    const embed = new EmbedBuilder()
-      .setColor(EVENT_COLORS[reminder.type] || 0x5865f2)
-      .setTitle(title)
-      .addFields(
-        { name: 'Time',     value: `<t:${reminder.starts_at}:F>`,         inline: true },
-        { name: 'Location', value: reminder.location || 'TBD',            inline: true },
+    const embed = modLogEmbed({
+      color: eventColor(reminder),
+      title,
+      footer: 'CBC Events',
+      fields: [
+        { name: 'Time',     value: `<t:${reminder.starts_at}:F>`,             inline: true },
+        { name: 'Location', value: reminder.location || 'TBD',                inline: true },
         { name: 'Duration', value: formatDuration(reminder.duration_minutes), inline: true },
-      )
-      .setFooter(brandFooter('CBC Events'));
+      ],
+    });
 
     const participants = await pg.all(
       'SELECT discord_id FROM event_registrations WHERE event_id = $1 AND withdrawn = false',
       [reminder.id],
     );
 
-    for (const p of participants) {
-      try {
-        const user = await _client.users.fetch(p.discord_id);
-        await user.send({ embeds: [embed] });
-      } catch (err) {
-        logger.warn(`Could not send ${reminder.reminder_type} reminder to ${p.discord_id}: ${err.message}`);
-      }
-    }
+    await dmUsers(
+      client,
+      participants.map(p => p.discord_id),
+      { embeds: [embed] },
+      `${reminder.reminder_type} reminder`,
+    );
 
     await pg.query(
       'UPDATE event_reminders SET sent = true WHERE event_id = $1 AND type = $2',
@@ -109,7 +98,7 @@ async function sendReminders(now) {
 
 // ── Ongoing event embed update ────────────────────────────────────────────────
 
-async function handleOngoingEvents(now) {
+async function handleOngoingEvents(client, now) {
   const ongoing = await pg.all(
     `SELECT * FROM events
       WHERE starts_at <= $1
@@ -119,7 +108,7 @@ async function handleOngoingEvents(now) {
   );
 
   for (const event of ongoing) {
-    await updateEventEmbed(_client, event, false).catch(err =>
+    await updateEventEmbed(client, event, false).catch(err =>
       logger.warn(`Could not update ongoing embed for event ${event.id}: ${err.message}`)
     );
     await pg.query('UPDATE events SET ongoing_notified = true WHERE id = $1', [event.id]);
@@ -129,7 +118,7 @@ async function handleOngoingEvents(now) {
 
 // ── Post-event flow ───────────────────────────────────────────────────────────
 
-async function handleEndedEvents(now) {
+async function handleEndedEvents(client, now) {
   const ended = await pg.all(
     `SELECT e.*
        FROM events e
@@ -141,18 +130,18 @@ async function handleEndedEvents(now) {
 
   for (const event of ended) {
     try {
-      await processEndedEvent(event);
+      await processEndedEvent(client, event);
     } catch (err) {
       logger.error(`Failed to process ended event ${event.id}: ${err.message}`, err);
     }
   }
 }
 
-async function processEndedEvent(event) {
+async function processEndedEvent(client, event) {
   logger.info(`Processing ended event ${event.id} (${event.name})`);
 
   // Disable Register button on original embed
-  await updateEventEmbed(_client, event, true);
+  await updateEventEmbed(client, event, true);
 
   const allRegistrations   = await pg.all('SELECT * FROM event_registrations WHERE event_id = $1', [event.id]);
   const activeParticipants = allRegistrations.filter(r => !r.withdrawn);
@@ -162,11 +151,12 @@ async function processEndedEvent(event) {
   const organizerSet = new Set(organizers);
 
   // Send attendance check DMs to non-organizer participants only
-  const attendEmbed = new EmbedBuilder()
-    .setColor(EVENT_COLORS[event.type] || 0x5865f2)
-    .setTitle(`🙋⠀Did you attend ${event.name}?`)
-    .setDescription('The event has just ended. Please let us know if you attended!')
-    .setFooter(brandFooter('CBC Events'));
+  const attendEmbed = modLogEmbed({
+    color: eventColor(event),
+    title: `🙋⠀Did you attend ${event.name}?`,
+    description: 'The event has just ended. Please let us know if you attended!',
+    footer: 'CBC Events',
+  });
 
   for (const reg of activeParticipants.filter(r => !organizerSet.has(r.discord_id))) {
     const alreadySent = await pg.get(
@@ -176,7 +166,7 @@ async function processEndedEvent(event) {
     if (alreadySent?.sent) continue;
 
     try {
-      const user = await _client.users.fetch(reg.discord_id);
+      const user = await client.users.fetch(reg.discord_id);
       await user.send({ embeds: [attendEmbed], components: [buildAttendanceRow(event.id)] });
       await pg.query(
         `INSERT INTO event_attendance_sent (event_id, discord_id, sent) VALUES ($1, $2, true)
@@ -189,34 +179,23 @@ async function processEndedEvent(event) {
   }
 
   // Build and send summary
-  const totalRegistered = allRegistrations.length;
-  const totalWithdrawn  = allRegistrations.filter(r => r.withdrawn).length;
-  const totalActive     = activeParticipants.length;
-  const organizerMentions = organizers.map(id => `<@${id}>`).join(', ') || 'N/A';
-
-  const summaryEmbed = new EmbedBuilder()
-    .setColor(EVENT_COLORS[event.type] || 0x5865f2)
-    .setTitle(`📊⠀Event Summary: ${event.name}`)
-    .addFields(
-      { name: 'Organiser(s)',      value: organizerMentions,    inline: false },
-      { name: 'Total Registered',  value: `${totalRegistered}`, inline: true  },
-      { name: 'Total Withdrawn',   value: `${totalWithdrawn}`,  inline: true  },
-      { name: 'Final Participants',value: `${totalActive}`,     inline: true  },
-    )
-    .setFooter(brandFooter('CBC Events'));
+  const summaryEmbed = modLogEmbed({
+    color: eventColor(event),
+    title: `📊⠀Event Summary: ${event.name}`,
+    footer: 'CBC Events',
+    fields: [
+      { name: 'Organiser(s)',       value: mentionList(organizers),                       inline: false },
+      { name: 'Total Registered',   value: `${allRegistrations.length}`,                  inline: true  },
+      { name: 'Total Withdrawn',    value: `${allRegistrations.filter(r => r.withdrawn).length}`, inline: true },
+      { name: 'Final Participants', value: `${activeParticipants.length}`,                inline: true  },
+    ],
+  });
 
   const notifyIds = [...new Set([...organizers, event.created_by])];
-  for (const userId of notifyIds) {
-    try {
-      const user = await _client.users.fetch(userId);
-      await user.send({ embeds: [summaryEmbed] });
-    } catch (err) {
-      logger.warn(`Could not send summary DM to ${userId}: ${err.message}`);
-    }
-  }
+  await dmUsers(client, notifyIds, { embeds: [summaryEmbed] }, 'event summary');
 
   if (event.guild_id) {
-    await logToModLog(_client, event.guild_id, summaryEmbed);
+    await logToModLog(client, event.guild_id, summaryEmbed);
   }
 
   await pg.query(
@@ -227,4 +206,4 @@ async function processEndedEvent(event) {
   logger.info(`Completed post-event flow for event ${event.id} (${event.name})`);
 }
 
-module.exports = { start };
+module.exports = makeScheduler({ name: 'event', intervalMs: 60_000, firstDelayMs: 10_000, job: tick });
