@@ -3,10 +3,11 @@ const { EmbedBuilder } = require('discord.js');
 const BRAND_COLOR = 0x5865f2;
 
 const BRAND_FOOTER_TEXT = 'Claude Builder Club · TCD';
-// Served from the repo (assets/claude-footer.png) via GitHub's CDN — no
-// third-party image host or token. Discord proxies and caches it.
+// Served from the repo (assets/footer-icon.png) via GitHub's CDN — no
+// third-party image host or token. Discord proxies and caches it by URL, so
+// change the filename (not just the bytes) when swapping the image.
 const BRAND_FOOTER_ICON =
-  'https://raw.githubusercontent.com/AskewCow/CBC-Discord-Bot/main/assets/claude-footer.png';
+  'https://raw.githubusercontent.com/AskewCow/CBC-Discord-Bot/main/assets/footer-icon.png';
 
 // Standard footer for every embed the bot sends. Pass a string to keep a
 // context-specific label (e.g. "CBC Events") while still showing the icon.
