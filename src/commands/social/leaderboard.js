@@ -5,7 +5,7 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { requireAmbassador }            = require('../../utils/permissions');
-const { getLeaderboard, createLeaderboard } = require('../../utils/inviteUtils');
+const { getLeaderboard, createLeaderboard, deleteLeaderboard } = require('../../utils/inviteUtils');
 const { logToModLog }             = require('../../utils/eventHandlers');
 const { CONFIG_KEYS }             = require('../../constants');
 const config                      = require('../../utils/config');
@@ -87,16 +87,17 @@ async function filterCommittee(guild, rows) {
 }
 
 function buildLeaderboardEmbed(rows, scope, includeCommittee, startedAt) {
-  const isLive   = scope === 'live';
-  const scopeLabel = isLive
-    ? `Live (since ${new Date(startedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })})`
-    : 'All Time';
+  const isLive = scope === 'live';
 
   const embed = new EmbedBuilder()
     .setColor(isLive ? 0x57f287 : 0x5865f2)
     .setTitle(isLive ? '📊 Live Invite Leaderboard' : '📊 Invite Leaderboard')
     .setTimestamp()
-    .setFooter({ text: `Scope: ${scopeLabel} • Committee ${includeCommittee ? 'included' : 'excluded'}` });
+    .setFooter({
+      text: isLive
+        ? `Tracking since ${new Date(startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+        : 'All-time invites',
+    });
 
   if (!rows.length) {
     embed.setDescription(isLive
@@ -151,7 +152,12 @@ async function refreshLiveLeaderboard(client, record) {
   if (!channel) return;
 
   const message = await channel.messages.fetch(message_id).catch(() => null);
-  if (!message) return;
+  if (!message) {
+    // Message was deleted (possibly while the bot was offline, so the
+    // messageDelete handler never fired) — drop the stale row.
+    deleteLeaderboard(message_id);
+    return;
+  }
 
   let rows = await getLeaderboard(guild_id, scope, started_at);
 
