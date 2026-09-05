@@ -73,7 +73,7 @@ async function requireMember(interaction) {
       'Not set up yet',
       isCommittee(interaction.member)
         ? 'The Member role has not been configured. Set it with `/setup-add type:Member Role role:@…`.'
-        : 'This is not available yet — the Member role has not been configured. Message an ambassador and ask them to set it up with `/setup-add`.',
+        : 'This is not available yet. Please contact an ambassador.',
     );
   }
   if (isMember(interaction.member)) return true;
