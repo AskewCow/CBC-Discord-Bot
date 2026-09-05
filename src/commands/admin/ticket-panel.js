@@ -43,6 +43,11 @@ module.exports = {
       sub
         .setName('view')
         .setDescription('View the current panel configuration and all options')
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('delete')
+        .setDescription('Delete the ticket panel bound to this channel, its options, and its posted message')
     ),
 
   // Autocomplete for the remove-option subcommand
@@ -221,6 +226,49 @@ module.exports = {
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    }
+
+    // ── delete ─────────────────────────────────────────────────────────────────
+    if (sub === 'delete') {
+      const panel = ticketUtil.getPanelForChannel(interaction.guildId, interaction.channelId);
+      if (!panel) {
+        return interaction.reply({
+          embeds: [
+            errorEmbed(
+              'No panel here',
+              'There is no ticket panel bound to this channel. Run `/ticket-panel delete` in the channel whose panel you want to remove.'
+            ),
+          ],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      // Best-effort removal of the posted panel message.
+      if (panel.message_id) {
+        try {
+          const ch = await interaction.client.channels.fetch(panel.channel_id);
+          const msg = await ch.messages.fetch(panel.message_id);
+          await msg.delete();
+        } catch {
+          // Already gone — nothing to do.
+        }
+      }
+
+      const optionCount = ticketUtil.getOptionsForPanel(panel.id).length;
+      ticketUtil.deletePanel(panel.id);
+
+      return interaction.reply({
+        embeds: [
+          successEmbed(
+            'Panel deleted',
+            `Removed the **${panel.title}** panel from <#${panel.channel_id}>` +
+              (optionCount
+                ? ` along with its ${optionCount} option${optionCount === 1 ? '' : 's'}.`
+                : '.')
+          ),
+        ],
+        flags: MessageFlags.Ephemeral,
+      });
     }
   },
 };

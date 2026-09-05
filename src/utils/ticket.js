@@ -52,6 +52,11 @@ function setPanelMessageId(panelId, messageId) {
   db.prepare('UPDATE ticket_panels SET message_id = ? WHERE id = ?').run(messageId, panelId);
 }
 
+// Options and their flow steps cascade via ON DELETE CASCADE (foreign_keys=ON).
+function deletePanel(panelId) {
+  db.prepare('DELETE FROM ticket_panels WHERE id = ?').run(panelId);
+}
+
 // ─── DB helpers — options ─────────────────────────────────────────────────────
 
 function getOptionsForPanel(panelId) {
@@ -378,6 +383,7 @@ module.exports = {
   createPanel,
   updatePanelContent,
   setPanelMessageId,
+  deletePanel,
   postPanel,
   // options
   getOptionsForPanel,
