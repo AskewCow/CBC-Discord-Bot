@@ -28,8 +28,7 @@ async function startOnboardingFlow(member, guild) {
           .setColor(ONBOARDING_COLOR)
           .setTitle(`👋  Welcome to ${guild.name}!`)
           .setDescription(flow.welcome_msg)
-          .setThumbnail(guild.iconURL())
-          .setTimestamp(),
+          .setThumbnail(guild.iconURL()),
       ],
     });
   }
