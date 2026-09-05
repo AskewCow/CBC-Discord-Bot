@@ -70,10 +70,8 @@ async function requireMember(interaction) {
     // Not configured → nobody can proceed until an ambassador sets it up.
     return _ephemeralError(
       interaction,
-      'Not set up yet',
-      isCommittee(interaction.member)
-        ? 'The Member role has not been configured. Set it with `/setup-add type:Member Role role:@…`.'
-        : 'This is not available yet. Please contact an ambassador.',
+      'Not available',
+      'This feature has not been set up yet, or is disabled. Please inform an ambassador.',
     );
   }
   if (isMember(interaction.member)) return true;
