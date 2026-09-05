@@ -51,12 +51,22 @@ function migrateTickets() {
   }
 }
 
+// "stop_on" lets a Yes/No onboarding step end the flow immediately on a given
+// answer ('yes' | 'no' | NULL).
+function migrateOnboardingSteps() {
+  const cols = db.prepare("PRAGMA table_info(onboarding_steps)").all();
+  if (cols.length === 0) return;
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('stop_on')) db.exec("ALTER TABLE onboarding_steps ADD COLUMN stop_on TEXT");
+}
+
 function runSchema() {
   migrateInvites();
   migrateInviteLeaderboards();
   migrateConfig();
   migrateAdminRoleToAmbassador();
   migrateTickets();
+  migrateOnboardingSteps();
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS invites (
@@ -152,7 +162,8 @@ function runSchema() {
       step_type   TEXT NOT NULL DEFAULT 'text',
       content     TEXT NOT NULL,
       yes_content TEXT,
-      no_content  TEXT
+      no_content  TEXT,
+      stop_on     TEXT
     );
 
     CREATE TABLE IF NOT EXISTS onboarding_sessions (

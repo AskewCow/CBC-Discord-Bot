@@ -38,6 +38,16 @@ module.exports = {
             .setRequired(true)
             .addChoices(...STEP_TYPE_CHOICES)
         )
+        .addStringOption(opt =>
+          opt
+            .setName('end-flow-if')
+            .setDescription('End onboarding immediately on this answer (Yes/No questions only)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'They answer Yes', value: 'yes' },
+              { name: 'They answer No',  value: 'no'  },
+            )
+        )
     )
     .addSubcommand(sub =>
       sub.setName('list').setDescription('Show the current onboarding flow configuration')
@@ -86,7 +96,20 @@ module.exports = {
 
     // ── add ────────────────────────────────────────────────────────────────────
     if (sub === 'add') {
-      const stepType = interaction.options.getString('type');
+      const stepType  = interaction.options.getString('type');
+      const endFlowIf = interaction.options.getString('end-flow-if');
+
+      if (stepType === 'text' && endFlowIf) {
+        return interaction.reply({
+          embeds: [
+            errorEmbed(
+              'Not applicable',
+              '`end-flow-if` only works on Yes/No questions. Re-run `/onboarding-flow add` without it for a text question.'
+            ),
+          ],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
       // Ensure a questions-type flow exists
       let flow = onb.getFlow(interaction.guildId);
@@ -114,7 +137,7 @@ module.exports = {
 
       if (stepType === 'yes_no') {
         const modal = new ModalBuilder()
-          .setCustomId(`onboarding_flow:add_yn:${flow.id}`)
+          .setCustomId(`onboarding_flow:add_yn:${flow.id}:${endFlowIf ?? ''}`)
           .setTitle('Add Yes/No Question')
           .addComponents(
             new ActionRowBuilder().addComponents(
@@ -204,6 +227,7 @@ module.exports = {
         let text    = `${num} [${badge}]\n> ${step.content.replace(/\n/g, '\n> ')}`;
         if (step.yes_content) text += `\n> ✅ **Yes →** ${step.yes_content.replace(/\n/g, ' ')}`;
         if (step.no_content)  text += `\n> ❌ **No →** ${step.no_content.replace(/\n/g, ' ')}`;
+        if (step.stop_on)     text += `\n> ⛔ **Ends onboarding if answered ${step.stop_on === 'yes' ? 'Yes' : 'No'}**`;
         return text;
       });
 

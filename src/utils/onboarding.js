@@ -69,15 +69,15 @@ function getStep(stepId) {
   return db.prepare('SELECT * FROM onboarding_steps WHERE id = ?').get(stepId);
 }
 
-function addStep(flowId, stepType, content, yesContent, noContent) {
+function addStep(flowId, stepType, content, yesContent, noContent, stopOn = null) {
   const { m: maxOrder } = db
     .prepare('SELECT COALESCE(MAX(step_order), -1) AS m FROM onboarding_steps WHERE flow_id = ?')
     .get(flowId);
   return db
     .prepare(
-      'INSERT INTO onboarding_steps (flow_id, step_order, step_type, content, yes_content, no_content) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO onboarding_steps (flow_id, step_order, step_type, content, yes_content, no_content, stop_on) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(flowId, maxOrder + 1, stepType, content, yesContent || null, noContent || null)
+    .run(flowId, maxOrder + 1, stepType, content, yesContent || null, noContent || null, stopOn || null)
     .lastInsertRowid;
 }
 

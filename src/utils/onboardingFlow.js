@@ -115,12 +115,19 @@ async function resumeAfterYesNo(interaction, session, stepId, choice) {
 
   onb.appendAnswer(session.id, stepId, step.content, choice === 'yes' ? 'Yes' : 'No');
 
+  const guild = interaction.client.guilds.cache.get(session.guild_id);
+
+  // This answer is configured to end onboarding immediately — skip the rest.
+  if (step.stop_on === choice) {
+    const freshSession = onb.getSession(session.discord_id, session.guild_id);
+    return _completeFlow(interaction.channel, freshSession, guild);
+  }
+
   const allSteps = onb.getSteps(step.flow_id);
   const remaining = allSteps.filter(
     s => s.step_order > step.step_order || (s.step_order === step.step_order && s.id > step.id)
   );
 
-  const guild = interaction.client.guilds.cache.get(session.guild_id);
   await _runSteps(interaction.channel, session, remaining, guild);
 }
 
