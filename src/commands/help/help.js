@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { brandFooter } = require('../../utils/embeds');
 const config = require('../../utils/config');
 
 module.exports = {
@@ -18,7 +19,8 @@ module.exports = {
         new EmbedBuilder()
           .setColor(0x5865f2)
           .setTitle('🎫  Need help?')
-          .setDescription(description),
+          .setDescription(description)
+          .setFooter(brandFooter()),
       ],
       flags: MessageFlags.Ephemeral,
     });

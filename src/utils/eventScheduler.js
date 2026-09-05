@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { brandFooter } = require('./embeds');
 const pg = require('../database/pg');
 const logger = require('./logger');
 const {
@@ -82,7 +83,7 @@ async function sendReminders(now) {
         { name: 'Location', value: reminder.location || 'TBD',            inline: true },
         { name: 'Duration', value: formatDuration(reminder.duration_minutes), inline: true },
       )
-      .setFooter({ text: 'CBC Events' });
+      .setFooter(brandFooter('CBC Events'));
 
     const participants = await pg.all(
       'SELECT discord_id FROM event_registrations WHERE event_id = $1 AND withdrawn = false',
@@ -165,7 +166,7 @@ async function processEndedEvent(event) {
     .setColor(EVENT_COLORS[event.type] || 0x5865f2)
     .setTitle(`🙋⠀Did you attend ${event.name}?`)
     .setDescription('The event has just ended. Please let us know if you attended!')
-    .setFooter({ text: 'CBC Events' });
+    .setFooter(brandFooter('CBC Events'));
 
   for (const reg of activeParticipants.filter(r => !organizerSet.has(r.discord_id))) {
     const alreadySent = await pg.get(
@@ -202,7 +203,7 @@ async function processEndedEvent(event) {
       { name: 'Total Withdrawn',   value: `${totalWithdrawn}`,  inline: true  },
       { name: 'Final Participants',value: `${totalActive}`,     inline: true  },
     )
-    .setFooter({ text: 'CBC Events' });
+    .setFooter(brandFooter('CBC Events'));
 
   const notifyIds = [...new Set([...organizers, event.created_by])];
   for (const userId of notifyIds) {

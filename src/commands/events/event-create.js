@@ -11,7 +11,7 @@ const {
 const pg = require('../../database/pg');
 const config = require('../../utils/config');
 const { CONFIG_KEYS } = require('../../constants');
-const { successEmbed, errorEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, brandFooter } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const {
@@ -263,7 +263,7 @@ module.exports = {
         { name: 'Created by',   value: `<@${interaction.user.id}>`,       inline: true  },
         { name: 'Ping sent',    value: ping ? 'Yes' : 'No',              inline: true  },
       )
-      .setFooter({ text: 'CBC Events' });
+      .setFooter(brandFooter('CBC Events'));
 
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 

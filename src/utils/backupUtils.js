@@ -4,6 +4,7 @@
 // and replacing data/bot.db with the downloaded .db file (bot stopped).
 
 const { execFile } = require('child_process');
+const { brandFooter } = require('./embeds');
 const { promisify } = require('util');
 const os = require('os');
 const path = require('path');
@@ -124,7 +125,8 @@ async function runBackup(client, guild) {
     new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle('🗄️⠀Backup sent')
-      .setDescription(`Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`),
+      .setDescription(`Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`)
+      .setFooter(brandFooter()),
   ).catch(() => {});
 
   return { recipients: recipients.length, sent, failed: failed.length };

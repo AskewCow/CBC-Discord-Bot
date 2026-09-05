@@ -8,7 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, infoEmbed, brandFooter } = require('../../utils/embeds');
 const onb = require('../../utils/onboarding');
 const { requireAmbassador } = require('../../utils/permissions');
 
@@ -195,7 +195,7 @@ module.exports = {
               .setColor(0x57f287)
               .setTitle('Onboarding — Welcome message')
               .setDescription(`> ${flow.welcome_msg.replace(/\n/g, '\n> ')}`)
-              .setFooter({ text: 'Use /onboarding-flow set-welcome to update · /onboarding-flow delete to remove' }),
+              .setFooter(brandFooter('Use /onboarding-flow set-welcome to update · /onboarding-flow delete to remove')),
           ],
           flags: MessageFlags.Ephemeral,
         });
@@ -234,7 +234,7 @@ module.exports = {
         .setColor(0x57f287)
         .setTitle('Onboarding — Question form')
         .setDescription(welcomeSection + lines.join('\n\n'))
-        .setFooter({ text: `${steps.length} question${steps.length !== 1 ? 's' : ''} · Use /onboarding-flow remove to delete a step` });
+        .setFooter(brandFooter(`${steps.length} question${steps.length !== 1 ? 's' : ''} · Use /onboarding-flow remove to delete a step`));
 
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }

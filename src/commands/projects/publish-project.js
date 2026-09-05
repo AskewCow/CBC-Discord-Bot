@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } =
 const pg     = require('../../database/pg');
 const logger = require('../../utils/logger');
 const { requireAmbassador } = require('../../utils/permissions');
-const { errorEmbed, successEmbed } = require('../../utils/embeds');
+const { errorEmbed, successEmbed, brandFooter } = require('../../utils/embeds');
 const { deriveTagsFromGitHub } = require('../../utils/githubTags');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const { logToModLog } = require('../../utils/eventHandlers');
@@ -82,7 +82,8 @@ module.exports = {
           { name: 'Published by', value: `<@${interaction.user.id}>`,           inline: true },
           { name: 'How',          value: 'Manual (/publish-project)',            inline: true },
           { name: 'Tags',         value: tags.length ? tags.join(', ') : '—',    inline: false },
-        )).catch(() => {});
+        )
+        .setFooter(brandFooter())).catch(() => {});
     }
 
     const base = process.env.WEBSITE_BASE_URL;

@@ -5,7 +5,7 @@ const {
   MessageFlags,
 } = require('discord.js');
 const pg = require('../../database/pg');
-const { successEmbed, errorEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, brandFooter } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const {
@@ -95,7 +95,7 @@ module.exports = {
         { name: 'Was scheduled for', value: `<t:${event.starts_at}:F>`, inline: true },
         { name: 'Location',          value: event.location || 'TBD',    inline: true },
       )
-      .setFooter({ text: 'CBC Events' });
+      .setFooter(brandFooter('CBC Events'));
 
     for (const userId of participants) {
       try {
@@ -119,7 +119,7 @@ module.exports = {
         { name: 'Deleted by',        value: `<@${interaction.user.id}>`,                inline: true  },
         { name: 'Participants notified', value: `${participants.length}`,               inline: true  },
       )
-      .setFooter({ text: 'CBC Events' });
+      .setFooter(brandFooter('CBC Events'));
 
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 

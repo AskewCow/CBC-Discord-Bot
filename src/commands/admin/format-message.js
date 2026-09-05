@@ -8,6 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
+const { brandFooter, BRAND_FOOTER_TEXT } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const pg = require('../../database/pg');
 const logger = require('../../utils/logger');
@@ -19,9 +20,6 @@ const STYLES = {
   shoutout:     { label: '🌟 Shoutout',      color: 0xCD9D7D }, // sand
   resource:     { label: '📚 Resource',      color: 0x788C5D }, // sage
 };
-
-const FOOTER_TEXT = 'Claude Builder Club | Trinity College Dublin';
-const FOOTER_ICON = 'https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/claude-color.png';
 
 const COLORS = {
   default:    null,
@@ -164,13 +162,13 @@ module.exports = {
         .setColor(resolvedColor)
         .setTitle(`${styleInfo.label}: ${title}`)
         .setDescription(body + linkFragment)
-        .setFooter({ text: FOOTER_TEXT, iconURL: FOOTER_ICON });
+        .setFooter(brandFooter());
 
       posted = await interaction.channel.send({ embeds: [embed] });
     } else {
       const header = `**${styleInfo.label}: ${title}**`;
       posted = await interaction.channel.send({
-        content: `${header}\n\n${body}${linkFragment}\n\n-# ${FOOTER_TEXT}`,
+        content: `${header}\n\n${body}${linkFragment}\n\n-# ${BRAND_FOOTER_TEXT}`,
       });
     }
 

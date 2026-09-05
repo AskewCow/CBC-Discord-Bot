@@ -6,7 +6,18 @@ process.env.NODE_ENV = 'test';
 const { describe, test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { successEmbed, errorEmbed, infoEmbed } = require('../../src/utils/embeds');
+const {
+  successEmbed,
+  errorEmbed,
+  infoEmbed,
+  BRAND_FOOTER_TEXT,
+} = require('../../src/utils/embeds');
+
+function assertBrandFooter(data) {
+  assert.equal(data.timestamp, undefined);
+  assert.equal(data.footer.text, BRAND_FOOTER_TEXT);
+  assert.ok(data.footer.icon_url);
+}
 
 describe('successEmbed', () => {
   test('sets green color', () => {
@@ -19,8 +30,8 @@ describe('successEmbed', () => {
     assert.equal(data.description, 'Things worked.');
   });
 
-  test('has no timestamp footer', () => {
-    assert.equal(successEmbed('T', 'D').toJSON().timestamp, undefined);
+  test('has the brand footer and no timestamp', () => {
+    assertBrandFooter(successEmbed('T', 'D').toJSON());
   });
 });
 
@@ -35,8 +46,8 @@ describe('errorEmbed', () => {
     assert.equal(data.description, 'It broke.');
   });
 
-  test('has no timestamp footer', () => {
-    assert.equal(errorEmbed('T', 'D').toJSON().timestamp, undefined);
+  test('has the brand footer and no timestamp', () => {
+    assertBrandFooter(errorEmbed('T', 'D').toJSON());
   });
 });
 
@@ -51,8 +62,8 @@ describe('infoEmbed', () => {
     assert.equal(data.description, 'Just so you know.');
   });
 
-  test('has no timestamp footer', () => {
-    assert.equal(infoEmbed('T', 'D').toJSON().timestamp, undefined);
+  test('has the brand footer and no timestamp', () => {
+    assertBrandFooter(infoEmbed('T', 'D').toJSON());
   });
 });
 

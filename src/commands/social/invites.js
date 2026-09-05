@@ -3,6 +3,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
+const { brandFooter } = require('../../utils/embeds');
 const { getUserInviteCount } = require('../../utils/inviteUtils');
 
 module.exports = {
@@ -31,7 +32,8 @@ module.exports = {
         isSelf
           ? `You currently have **${count}** active ${noun} (members you invited who are still in the server).`
           : `**${target.username}** currently has **${count}** active ${noun}.`
-      );
+      )
+      .setFooter(brandFooter());
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   },

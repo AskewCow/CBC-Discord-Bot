@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { brandFooter } = require('./embeds');
 const pg     = require('../database/pg');
 const config = require('./config');
 const logger = require('./logger');
@@ -122,7 +123,8 @@ async function publishFromVote(project, counts) {
           .setTitle('🌐⠀Published to the CBC website')
           .setDescription(
             `**${project.name}** cleared committee voting (👍 ${counts.upvotes} / 👎 ${counts.downvotes}) and is now live in the showcase.`,
-          )],
+          )
+          .setFooter(brandFooter())],
       });
     } catch (err) {
       logger.warn(`Project ${project.id}: could not post publish notice to thread — ${err.message}`);
@@ -139,7 +141,8 @@ async function publishFromVote(project, counts) {
         { name: 'Final Vote',   value: `👍 ${counts.upvotes} · 👎 ${counts.downvotes}`, inline: true },
         { name: 'How',          value: `Auto (net ≥ ${PUBLISH_NET_THRESHOLD})`,          inline: true },
         { name: 'Tags',         value: tags.length ? tags.join(', ') : '—',              inline: false },
-      )).catch(() => {});
+      )
+      .setFooter(brandFooter())).catch(() => {});
   }
 }
 

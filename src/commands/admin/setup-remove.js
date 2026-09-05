@@ -7,7 +7,7 @@ const {
 } = require('discord.js');
 const config = require('../../utils/config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../../constants');
-const { successEmbed, errorEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, brandFooter } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
 const { buildSetupBoard } = require('../../utils/setupBoard');
 const { logToModLog } = require('../../utils/eventHandlers');
@@ -114,7 +114,8 @@ module.exports = {
         { name: 'Setting',    value: label,                           inline: true },
         { name: 'Value',      value: mention,                         inline: true },
         { name: 'Updated By', value: `<@${interaction.user.id}>`,    inline: true },
-      );
+      )
+      .setFooter(brandFooter());
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 
     return interaction.reply({

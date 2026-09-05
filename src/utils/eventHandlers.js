@@ -5,6 +5,7 @@ const {
   ButtonStyle,
   MessageFlags,
 } = require('discord.js');
+const { brandFooter } = require('./embeds');
 const db = require('../database/db');   // SQLite — event_thank_you only
 const pg = require('../database/pg');   // Postgres — events + registrations + organizers
 const logger = require('./logger');
@@ -93,7 +94,7 @@ function buildEventEmbed(event, organizers, participantCount, ended = false) {
       { name: '​',       value: '​',                                    inline: true },
       { name: 'Participants', value: `${participantCount}`,                       inline: true },
     )
-    .setFooter({ text: isEnded ? 'This event has ended.' : 'CBC Events' });
+    .setFooter(brandFooter(isEnded ? 'This event has ended.' : 'CBC Events'));
 
   if (event.description) embed.setDescription(event.description);
   return embed;
@@ -114,7 +115,7 @@ function buildCancelledEmbed(event) {
     .setColor(0xed4245)
     .setTitle(`❌⠀~~${event.name}~~ — Cancelled`)
     .setDescription('This event has been cancelled. We apologise for any inconvenience.')
-    .setFooter({ text: 'CBC Events' });
+    .setFooter(brandFooter('CBC Events'));
 }
 
 function buildWithdrawRow(eventId, disabled = false) {
@@ -158,7 +159,7 @@ function buildRegistrationDMEmbed(event, organizers) {
       { name: 'Time',         value: `<t:${event.starts_at}:F>`,             inline: true  },
       { name: 'Duration',     value: formatDuration(event.duration_minutes),  inline: true  },
     )
-    .setFooter({ text: 'CBC Events' });
+    .setFooter(brandFooter('CBC Events'));
 }
 
 async function updateEventEmbed(client, event, ended = false, opts = {}) {
@@ -201,7 +202,7 @@ async function notifyOrganizers(client, event, userTag, totalCount, action, orga
       { name: 'User',               value: userTag,          inline: true },
       { name: 'Total Participants', value: `${totalCount}`,  inline: true },
     )
-    .setFooter({ text: 'CBC Events' });
+    .setFooter(brandFooter('CBC Events'));
 
   for (const userId of notifyIds) {
     try {
@@ -327,7 +328,8 @@ async function handleWithdraw(interaction) {
       embeds: [new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle(`↩️⠀Withdrawn from ${event.name}`)
-        .setDescription("You're not currently registered for this event.")],
+        .setDescription("You're not currently registered for this event.")
+        .setFooter(brandFooter('CBC Events'))],
       components: [],
     });
   }
@@ -344,7 +346,7 @@ async function handleWithdraw(interaction) {
       .setColor(0xed4245)
       .setTitle(`↩️⠀Withdrawn from ${event.name}`)
       .setDescription('You have been removed from the participant list. You can re-register at any time using the event message.')
-      .setFooter({ text: 'CBC Events' })],
+      .setFooter(brandFooter('CBC Events'))],
     components: [],
   });
 
@@ -393,13 +395,13 @@ async function handleAttend(interaction) {
       .setColor(0x57f287)
       .setTitle(`🎊⠀Thanks for attending ${event.name}!`)
       .setDescription(descParts.join('\n'))
-      .setFooter({ text: 'CBC Events' });
+      .setFooter(brandFooter('CBC Events'));
   } else {
     responseEmbed = new EmbedBuilder()
       .setColor(EVENT_COLORS[event.type] || 0x5865f2)
       .setTitle(`👋⠀${event.name}`)
       .setDescription("Hope to see you next time! Don't worry about missing this one.")
-      .setFooter({ text: 'CBC Events' });
+      .setFooter(brandFooter('CBC Events'));
   }
 
   await interaction.update({ embeds: [responseEmbed], components: [] });
@@ -417,7 +419,7 @@ async function handleAttend(interaction) {
       { name: 'Attended',      value: answer === 'yes' ? 'Yes ✅' : 'No ❌',              inline: true  },
       { name: 'Organiser(s)',  value: organizers.map(id => `<@${id}>`).join(', ') || 'N/A', inline: false },
     )
-    .setFooter({ text: 'CBC Events' });
+    .setFooter(brandFooter('CBC Events'));
 
   await logToModLog(interaction.client, event.guild_id, logEmbed);
 }

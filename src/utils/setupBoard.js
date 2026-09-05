@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { brandFooter } = require('./embeds');
 const config = require('./config');
 const { SETUP_CHOICES, CHANNEL_KEYS, CATEGORY_KEYS, ROLE_KEYS } = require('../constants');
 
@@ -29,7 +30,7 @@ function buildSetupBoard(guildId) {
       { name: 'Categories', value: categoryLines.join('\n\n') || '*None defined*', inline: false },
       { name: 'Roles',      value: roleLines.join('\n\n')     || '*None defined*', inline: false },
     )
-    .setFooter({ text: 'Use /setup-add and /setup-remove to configure.' });
+    .setFooter(brandFooter('Use /setup-add and /setup-remove to configure.'));
 }
 
 module.exports = { buildSetupBoard };

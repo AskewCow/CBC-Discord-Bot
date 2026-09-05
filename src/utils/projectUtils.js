@@ -1,4 +1,5 @@
 const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
+const { brandFooter } = require('./embeds');
 
 const BUILT_WITH_LABELS = {
   claude_code: 'Claude Code',
@@ -57,6 +58,7 @@ function buildProjectEmbed(project, { forReview = false, voteClosed = false, cou
     .setTitle(title)
     .setDescription(project.description)
     .addFields(fields)
+    .setFooter(brandFooter())
     .setTimestamp(project.submitted_at * 1000);
 
   if (project.thumbnail_url) {

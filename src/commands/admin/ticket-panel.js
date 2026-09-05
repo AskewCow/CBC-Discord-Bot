@@ -8,7 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, infoEmbed, brandFooter } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
 const { requireAmbassador } = require('../../utils/permissions');
 
@@ -222,7 +222,7 @@ module.exports = {
           { name: 'Description', value: panel.description },
           { name: `Dropdown Options (${options.length}/24 custom)`, value: optionLines }
         )
-        .setFooter({ text: '"Other" is always shown as the last option automatically.' });
+        .setFooter(brandFooter('"Other" is always shown as the last option automatically.'));
 
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }

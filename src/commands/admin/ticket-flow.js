@@ -8,7 +8,7 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, infoEmbed, brandFooter } = require('../../utils/embeds');
 const ticketUtil = require('../../utils/ticket');
 const { requireAmbassador } = require('../../utils/permissions');
 
@@ -218,7 +218,7 @@ module.exports = {
         .setColor(0x5865f2)
         .setTitle(`Flow steps — ${option.emoji ? option.emoji + ' ' : ''}${option.label}`)
         .setDescription(lines.join('\n\n'))
-        .setFooter({ text: `${steps.length} step${steps.length !== 1 ? 's' : ''} · Use /ticket-flow remove to delete a step` });
+        .setFooter(brandFooter(`${steps.length} step${steps.length !== 1 ? 's' : ''} · Use /ticket-flow remove to delete a step`));
 
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }

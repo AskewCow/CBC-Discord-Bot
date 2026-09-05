@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { brandFooter } = require('./embeds');
 const pg       = require('../database/pg');
 const cfg      = require('./config');
 const logger   = require('./logger');
@@ -28,7 +29,8 @@ async function startOnboardingFlow(member, guild) {
           .setColor(ONBOARDING_COLOR)
           .setTitle(`👋  Welcome to ${guild.name}!`)
           .setDescription(flow.welcome_msg)
-          .setThumbnail(guild.iconURL()),
+          .setThumbnail(guild.iconURL())
+          .setFooter(brandFooter()),
       ],
     });
   }
@@ -160,7 +162,8 @@ async function _completeFlow(dmChannel, session, guild) {
       new EmbedBuilder()
         .setColor(ONBOARDING_COLOR)
         .setTitle('✅  Onboarding complete!')
-        .setDescription(`Thanks for taking the time to fill that in. Welcome to **${guild?.name ?? 'the server'}**!`),
+        .setDescription(`Thanks for taking the time to fill that in. Welcome to **${guild?.name ?? 'the server'}**!`)
+        .setFooter(brandFooter()),
     ],
   });
 
@@ -193,7 +196,7 @@ async function _postModLog(session, guild) {
       { name: 'Username', value: member?.user.tag ?? session.discord_id, inline: true },
       { name: 'Joined',   value: member ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:F>` : 'Unknown', inline: true }
     )
-    .setFooter({ text: 'Onboarding completed' });
+    .setFooter(brandFooter('Onboarding completed'));
 
   // Add Q&A fields — cap at 22 to stay within Discord's 25-field limit (3 already used)
   const MAX_QA_FIELDS = 22;

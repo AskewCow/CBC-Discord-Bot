@@ -1,4 +1,5 @@
 const db = require('../database/db');
+const { brandFooter } = require('./embeds');
 const config = require('./config');
 const {
   EmbedBuilder,
@@ -154,7 +155,7 @@ function buildPanelMessage(panel, options) {
     .setColor(TICKET_COLOR)
     .setTitle(`🎫  ${panel.title}`)
     .setDescription(panel.description)
-    .setFooter({ text: 'A private support channel will be created just for you.' });
+    .setFooter(brandFooter('A private support channel will be created just for you.'));
 
   const selectOptions = options.map(opt => {
     const o = { label: opt.label.slice(0, 100), value: `opt:${opt.id}` };
@@ -188,7 +189,7 @@ function buildWelcomeEmbed(ticketId, opener, topic) {
       `Please describe your issue in as much detail as possible, and a staff member will be with you shortly.`
     )
     .addFields({ name: 'Category', value: topic || 'Other', inline: true })
-    .setFooter({ text: 'Use the button below to close this ticket when your issue is resolved.' });
+    .setFooter(brandFooter('Use the button below to close this ticket when your issue is resolved.'));
 }
 
 function buildCloseButton(ticketId) {
@@ -210,7 +211,8 @@ function buildClosePrompt(ticketId) {
       new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle('Close this ticket?')
-        .setDescription('A copy of the transcript will be sent to the person who opened this ticket, then this channel will be permanently deleted. This cannot be undone.'),
+        .setDescription('A copy of the transcript will be sent to the person who opened this ticket, then this channel will be permanently deleted. This cannot be undone.')
+        .setFooter(brandFooter()),
     ],
     components: [
       new ActionRowBuilder().addComponents(

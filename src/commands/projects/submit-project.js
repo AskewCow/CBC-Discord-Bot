@@ -10,7 +10,7 @@ const { EmbedBuilder } = require('discord.js');
 const pg     = require('../../database/pg');
 const config = require('../../utils/config');
 const logger = require('../../utils/logger');
-const { errorEmbed, successEmbed } = require('../../utils/embeds');
+const { errorEmbed, successEmbed, brandFooter } = require('../../utils/embeds');
 const { buildProjectEmbed, buildVoteRow } = require('../../utils/projectUtils');
 const { logToModLog } = require('../../utils/eventHandlers');
 const { requireMember } = require('../../utils/permissions');
@@ -211,7 +211,8 @@ module.exports = {
           { name: 'Project',     value: name,                            inline: true  },
           { name: 'Submitted By', value: `<@${interaction.user.id}>`,   inline: true  },
           { name: 'Description', value: description.slice(0, 1024),     inline: false },
-        );
+        )
+        .setFooter(brandFooter());
       await logToModLog(interaction.client, guildId, logEmbed);
 
       logger.info(`Project ${projectId} (${name}) submitted by ${interaction.user.id}`);

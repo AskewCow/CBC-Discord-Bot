@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } =
 const pg     = require('../../database/pg');
 const logger = require('../../utils/logger');
 const { requireAmbassador } = require('../../utils/permissions');
-const { errorEmbed, successEmbed } = require('../../utils/embeds');
+const { errorEmbed, successEmbed, brandFooter } = require('../../utils/embeds');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const { logToModLog } = require('../../utils/eventHandlers');
 
@@ -69,7 +69,8 @@ module.exports = {
         .addFields(
           { name: 'Project',        value: project.name,               inline: true },
           { name: 'Unpublished by', value: `<@${interaction.user.id}>`, inline: true },
-        )).catch(() => {});
+        )
+        .setFooter(brandFooter())).catch(() => {});
     }
 
     return interaction.editReply({

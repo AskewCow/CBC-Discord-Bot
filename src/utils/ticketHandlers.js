@@ -1,4 +1,5 @@
 const { EmbedBuilder, MessageFlags } = require('discord.js');
+const { brandFooter } = require('./embeds');
 const { errorEmbed } = require('./embeds');
 const logger = require('./logger');
 const ticketUtil = require('./ticket');
@@ -77,7 +78,8 @@ async function handleTicketOpen(interaction) {
       new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle('✅  Ticket created')
-        .setDescription(`Your ticket has been opened at ${channel.toString()}.`),
+        .setDescription(`Your ticket has been opened at ${channel.toString()}.`)
+        .setFooter(brandFooter()),
     ],
   });
 }
@@ -119,7 +121,8 @@ async function handleCloseConfirm(interaction) {
       new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle('Closing ticket…')
-        .setDescription('Saving the transcript. This channel will be deleted shortly.'),
+        .setDescription('Saving the transcript. This channel will be deleted shortly.')
+        .setFooter(brandFooter()),
     ],
     components: [],
   });
@@ -152,7 +155,8 @@ async function handleCloseCancel(interaction) {
       new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle('Close cancelled')
-        .setDescription('The ticket will remain open.'),
+        .setDescription('The ticket will remain open.')
+        .setFooter(brandFooter()),
     ],
     components: [],
   });
@@ -211,7 +215,8 @@ async function _logClose(interaction, ticket, files = []) {
       { name: 'Opener',   value: `<@${ticket.opener_id}>`, inline: true },
       { name: 'Category', value: ticket.topic || 'Other',  inline: true },
       { name: 'Closed by', value: `<@${interaction.user.id}>`, inline: true }
-    );
+    )
+    .setFooter(brandFooter());
 
   await logToModLog(interaction.client, interaction.guildId, embed, files);
 }

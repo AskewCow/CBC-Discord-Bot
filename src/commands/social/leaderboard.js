@@ -4,6 +4,7 @@ const {
   PermissionFlagsBits,
   MessageFlags,
 } = require('discord.js');
+const { brandFooter } = require('../../utils/embeds');
 const { requireAmbassador }            = require('../../utils/permissions');
 const { getLeaderboard, createLeaderboard, deleteLeaderboard } = require('../../utils/inviteUtils');
 const { logToModLog }             = require('../../utils/eventHandlers');
@@ -93,11 +94,13 @@ function buildLeaderboardEmbed(rows, scope, includeCommittee, startedAt) {
     .setColor(isLive ? 0x57f287 : 0x5865f2)
     .setTitle(isLive ? '📊 Live Invite Leaderboard' : '📊 Invite Leaderboard')
     .setTimestamp()
-    .setFooter({
-      text: isLive
-        ? `Tracking since ${new Date(startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
-        : 'All-time invites',
-    });
+    .setFooter(
+      brandFooter(
+        isLive
+          ? `Tracking since ${new Date(startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+          : 'All-time invites',
+      ),
+    );
 
   if (!rows.length) {
     embed.setDescription(isLive
@@ -133,7 +136,8 @@ async function logLeaderboard(interaction, scope, includeCommittee, rows, starte
       { name: 'Scope',        value: scopeLabel,                                 inline: true },
       { name: 'Committee',    value: includeCommittee ? 'Included' : 'Excluded', inline: true },
       { name: 'Top 3',        value: top3 },
-    );
+    )
+    .setFooter(brandFooter());
 
   await logToModLog(interaction.client, interaction.guild.id, logEmbed);
 }
