@@ -5,6 +5,7 @@ const backupConfig = require('../../utils/backupConfig');
 const { runBackup } = require('../../utils/backupUtils');
 const config = require('../../utils/config');
 const { CONFIG_KEYS } = require('../../constants');
+const { mentionConfigured } = require('../../utils/mentions');
 const logger = require('../../utils/logger');
 
 module.exports = {
@@ -58,9 +59,10 @@ module.exports = {
       });
     }
 
-    const ambassadorMention = ambassadorRoles.length
-      ? ambassadorRoles.map((id) => `<@&${id}>`).join(', ')
-      : '**Ambassador**';
+    const ambassadorMention = mentionConfigured(interaction.guildId, CONFIG_KEYS.AMBASSADOR_ROLE, {
+      type: 'role',
+      fallback: '**Ambassador**',
+    });
 
     const sub = interaction.options.getSubcommand();
 
@@ -132,7 +134,7 @@ module.exports = {
           embeds: [
             successEmbed(
               'Backup sent',
-              `Sent to ${result.sent}/${result.recipients} ambassador(s).` +
+              `Sent to ${result.sent}/${result.recipients} member(s) with ${ambassadorMention}.` +
                 (result.failed ? ` ${result.failed} couldn't be DM'd (DMs likely closed).` : ''),
             ),
           ],

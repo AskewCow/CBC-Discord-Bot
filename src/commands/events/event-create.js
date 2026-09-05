@@ -184,7 +184,12 @@ module.exports = {
     const eventsChannel = await interaction.client.channels.fetch(eventChannelId).catch(() => null);
     if (!eventsChannel) {
       return interaction.reply({
-        embeds: [errorEmbed('Channel not found', 'The configured events channel could not be fetched.')],
+        embeds: [
+          errorEmbed(
+            'Channel not found',
+            `The configured events channel (<#${eventChannelId}>) could not be fetched — it may have been deleted. Re-link one with \`/setup-add\`.`,
+          ),
+        ],
         flags: MessageFlags.Ephemeral,
       });
     }

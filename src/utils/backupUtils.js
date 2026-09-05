@@ -15,6 +15,7 @@ const { CONFIG_KEYS } = require('../constants');
 const logger = require('./logger');
 const backupConfig = require('./backupConfig');
 const { logToModLog } = require('./eventHandlers');
+const { mentionConfigured } = require('./mentions');
 
 const execFileAsync = promisify(execFile);
 
@@ -112,13 +113,18 @@ async function runBackup(client, guild) {
   backupConfig.markRun(guild.id, Math.floor(Date.now() / 1000));
   logger.info(`Backup for guild ${guild.id}: sent to ${sent}/${recipients.length} ambassador(s)`);
 
+  const ambassadorMention = mentionConfigured(guild.id, CONFIG_KEYS.AMBASSADOR_ROLE, {
+    type: 'role',
+    fallback: 'the Ambassador role',
+  });
+
   await logToModLog(
     client,
     guild.id,
     new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle('🗄️⠀Backup sent')
-      .setDescription(`Sent to ${sent}/${recipients.length} ambassador(s).`)
+      .setDescription(`Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`)
       .setTimestamp(),
   ).catch(() => {});
 
