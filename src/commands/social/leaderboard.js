@@ -171,5 +171,3 @@ async function refreshLiveLeaderboard(client, record) {
 }
 
 module.exports.refreshLiveLeaderboard = refreshLiveLeaderboard;
-module.exports.buildLeaderboardEmbed  = buildLeaderboardEmbed;
-module.exports.filterCommittee        = filterCommittee;

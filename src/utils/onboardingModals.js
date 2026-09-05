@@ -1,5 +1,5 @@
 const { MessageFlags } = require('discord.js');
-const { successEmbed, errorEmbed } = require('./embeds');
+const { successEmbed } = require('./embeds');
 const onb = require('./onboarding');
 
 // ─── /onboarding-flow set-welcome ─────────────────────────────────────────────

@@ -367,7 +367,6 @@ module.exports = {
   getOptionsForGuild,
   createPanel,
   updatePanelContent,
-  setPanelMessageId,
   deletePanel,
   postPanel,
   // options
@@ -396,7 +395,6 @@ module.exports = {
   buildClosePrompt,
   buildFlowEmbed,
   renderFlowContent,
-  FLOW_PLACEHOLDERS,
   buildYesNoRow,
   buildDisabledYesNoRow,
   // channel ops

@@ -17,10 +17,6 @@ function isCommittee(member) {
     .some(id => member.roles.cache.has(id));
 }
 
-function hasRole(member, roleId) {
-  return member.roles.cache.has(roleId);
-}
-
 // Holds the configured Member role (assigned on completing onboarding).
 // Ambassadors/committee always count. Returns false if no Member role is
 // configured for the guild — callers should surface a "not set up" message
@@ -59,11 +55,6 @@ async function requireAmbassador(interaction) {
   return _deny(interaction, 'ambassadors');
 }
 
-async function requireCommittee(interaction) {
-  if (isCommittee(interaction.member)) return true;
-  return _deny(interaction, 'ambassadors and committee members');
-}
-
 async function requireMember(interaction) {
   const memberRoles = config.getValues(interaction.guild.id, CONFIG_KEYS.MEMBER_ROLE);
   if (memberRoles.length === 0) {
@@ -82,9 +73,7 @@ module.exports = {
   isAmbassador,
   isCommittee,
   isMember,
-  hasRole,
   isMod,
   requireAmbassador,
-  requireCommittee,
   requireMember,
 };

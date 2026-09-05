@@ -424,7 +424,6 @@ module.exports = {
   buildAttendanceRow,
   buildRegistrationDMEmbed,
   updateEventEmbed,
-  notifyOrganizers,
   handleRegister,
   handleWithdraw,
   handleAttend,
