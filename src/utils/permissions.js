@@ -22,12 +22,13 @@ function hasRole(member, roleId) {
 }
 
 // Holds the configured Member role (assigned on completing onboarding).
-// Ambassadors/committee always count. If no Member role is configured for the
-// guild, this passes for everyone — the gate only applies once one is set.
+// Ambassadors/committee always count. Returns false if no Member role is
+// configured for the guild — callers should surface a "not set up" message
+// rather than treat that as a normal access denial (see requireMember).
 function isMember(member) {
   if (isCommittee(member)) return true;
   const memberRoles = config.getValues(member.guild.id, CONFIG_KEYS.MEMBER_ROLE);
-  if (memberRoles.length === 0) return true;
+  if (memberRoles.length === 0) return false;
   return memberRoles.some(id => member.roles.cache.has(id));
 }
 
@@ -37,14 +38,18 @@ function isMod(member) {
   return isCommittee(member);
 }
 
-async function _deny(interaction, who) {
+async function _ephemeralError(interaction, title, description) {
   const body = {
-    embeds: [errorEmbed('Access denied', `This command is restricted to ${who}.`)],
+    embeds: [errorEmbed(title, description)],
     flags: MessageFlags.Ephemeral,
   };
   if (interaction.deferred || interaction.replied) await interaction.followUp(body);
   else await interaction.reply(body);
   return false;
+}
+
+function _deny(interaction, who) {
+  return _ephemeralError(interaction, 'Access denied', `This command is restricted to ${who}.`);
 }
 
 // Command guards — use at the top of an execute():
@@ -60,6 +65,17 @@ async function requireCommittee(interaction) {
 }
 
 async function requireMember(interaction) {
+  const memberRoles = config.getValues(interaction.guild.id, CONFIG_KEYS.MEMBER_ROLE);
+  if (memberRoles.length === 0) {
+    // Not configured → nobody can proceed until an ambassador sets it up.
+    return _ephemeralError(
+      interaction,
+      'Not set up yet',
+      isCommittee(interaction.member)
+        ? 'The Member role has not been configured. Set it with `/setup-add type:Member Role role:@…`.'
+        : 'This is not available yet — the Member role has not been configured. Message an ambassador and ask them to set it up with `/setup-add`.',
+    );
+  }
   if (isMember(interaction.member)) return true;
   return _deny(interaction, 'members (complete onboarding first)');
 }
