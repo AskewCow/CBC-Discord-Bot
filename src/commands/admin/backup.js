@@ -10,7 +10,7 @@ const logger = require('../../utils/logger');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('backup')
-    .setDescription('Configure scheduled data backups, DMed to the Ambassador role.')
+    .setDescription("Configure scheduled data backups, DM'd to the Ambassador role.")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((sub) =>
       sub
@@ -51,12 +51,16 @@ module.exports = {
         embeds: [
           errorEmbed(
             'Ambassador role not set',
-            'Backups are DMed to the Ambassador role, but none is configured yet — set one with `/setup-add type:Ambassador Role role:@...` first.',
+            "Backups are DM'd to the Ambassador role, but none is configured yet — set one with `/setup-add type:Ambassador Role role:@...` first.",
           ),
         ],
         flags: MessageFlags.Ephemeral,
       });
     }
+
+    const ambassadorMention = ambassadorRoles.length
+      ? ambassadorRoles.map((id) => `<@&${id}>`).join(', ')
+      : '**Ambassador**';
 
     const sub = interaction.options.getSubcommand();
 
@@ -72,7 +76,7 @@ module.exports = {
         embeds: [
           successEmbed(
             'Backups enabled',
-            `Every **${updated.interval_days}** day(s), a Postgres + bot-data backup will be DMed to everyone with the Ambassador role.`,
+            `Every **${updated.interval_days}** day(s), a Postgres + bot-data backup will be DM'd to everyone with the ${ambassadorMention} role.`,
           ),
         ],
         flags: MessageFlags.Ephemeral,
@@ -129,7 +133,7 @@ module.exports = {
             successEmbed(
               'Backup sent',
               `Sent to ${result.sent}/${result.recipients} ambassador(s).` +
-                (result.failed ? ` ${result.failed} couldn't be DMed (DMs likely closed).` : ''),
+                (result.failed ? ` ${result.failed} couldn't be DM'd (DMs likely closed).` : ''),
             ),
           ],
         });
