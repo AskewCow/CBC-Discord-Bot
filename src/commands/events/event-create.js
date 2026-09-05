@@ -263,7 +263,6 @@ module.exports = {
         { name: 'Created by',   value: `<@${interaction.user.id}>`,       inline: true  },
         { name: 'Ping sent',    value: ping ? 'Yes' : 'No',              inline: true  },
       )
-      .setTimestamp()
       .setFooter({ text: 'CBC Events' });
 
     await logToModLog(interaction.client, interaction.guildId, logEmbed);

@@ -188,8 +188,7 @@ function buildWelcomeEmbed(ticketId, opener, topic) {
       `Please describe your issue in as much detail as possible, and a staff member will be with you shortly.`
     )
     .addFields({ name: 'Category', value: topic || 'Other', inline: true })
-    .setFooter({ text: 'Use the button below to close this ticket when your issue is resolved.' })
-    .setTimestamp();
+    .setFooter({ text: 'Use the button below to close this ticket when your issue is resolved.' });
 }
 
 function buildCloseButton(ticketId) {
@@ -211,8 +210,7 @@ function buildClosePrompt(ticketId) {
       new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle('Close this ticket?')
-        .setDescription('A copy of the transcript will be sent to the person who opened this ticket, then this channel will be permanently deleted. This cannot be undone.')
-        .setTimestamp(),
+        .setDescription('A copy of the transcript will be sent to the person who opened this ticket, then this channel will be permanently deleted. This cannot be undone.'),
     ],
     components: [
       new ActionRowBuilder().addComponents(

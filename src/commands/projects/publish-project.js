@@ -82,8 +82,7 @@ module.exports = {
           { name: 'Published by', value: `<@${interaction.user.id}>`,           inline: true },
           { name: 'How',          value: 'Manual (/publish-project)',            inline: true },
           { name: 'Tags',         value: tags.length ? tags.join(', ') : '—',    inline: false },
-        )
-        .setTimestamp()).catch(() => {});
+        )).catch(() => {});
     }
 
     const base = process.env.WEBSITE_BASE_URL;

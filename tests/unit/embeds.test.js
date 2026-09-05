@@ -19,8 +19,8 @@ describe('successEmbed', () => {
     assert.equal(data.description, 'Things worked.');
   });
 
-  test('always has a timestamp', () => {
-    assert.ok(successEmbed('T', 'D').toJSON().timestamp);
+  test('has no timestamp footer', () => {
+    assert.equal(successEmbed('T', 'D').toJSON().timestamp, undefined);
   });
 });
 
@@ -35,8 +35,8 @@ describe('errorEmbed', () => {
     assert.equal(data.description, 'It broke.');
   });
 
-  test('always has a timestamp', () => {
-    assert.ok(errorEmbed('T', 'D').toJSON().timestamp);
+  test('has no timestamp footer', () => {
+    assert.equal(errorEmbed('T', 'D').toJSON().timestamp, undefined);
   });
 });
 
@@ -51,8 +51,8 @@ describe('infoEmbed', () => {
     assert.equal(data.description, 'Just so you know.');
   });
 
-  test('always has a timestamp', () => {
-    assert.ok(infoEmbed('T', 'D').toJSON().timestamp);
+  test('has no timestamp footer', () => {
+    assert.equal(infoEmbed('T', 'D').toJSON().timestamp, undefined);
   });
 });
 

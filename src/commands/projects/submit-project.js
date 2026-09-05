@@ -211,8 +211,7 @@ module.exports = {
           { name: 'Project',     value: name,                            inline: true  },
           { name: 'Submitted By', value: `<@${interaction.user.id}>`,   inline: true  },
           { name: 'Description', value: description.slice(0, 1024),     inline: false },
-        )
-        .setTimestamp();
+        );
       await logToModLog(interaction.client, guildId, logEmbed);
 
       logger.info(`Project ${projectId} (${name}) submitted by ${interaction.user.id}`);

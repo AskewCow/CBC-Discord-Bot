@@ -31,8 +31,7 @@ module.exports = {
         isSelf
           ? `You currently have **${count}** active ${noun} (members you invited who are still in the server).`
           : `**${target.username}** currently has **${count}** active ${noun}.`
-      )
-      .setTimestamp();
+      );
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   },

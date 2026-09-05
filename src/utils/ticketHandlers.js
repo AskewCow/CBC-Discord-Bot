@@ -77,8 +77,7 @@ async function handleTicketOpen(interaction) {
       new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle('✅  Ticket created')
-        .setDescription(`Your ticket has been opened at ${channel.toString()}.`)
-        .setTimestamp(),
+        .setDescription(`Your ticket has been opened at ${channel.toString()}.`),
     ],
   });
 }
@@ -120,8 +119,7 @@ async function handleCloseConfirm(interaction) {
       new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle('Closing ticket…')
-        .setDescription('Saving the transcript. This channel will be deleted shortly.')
-        .setTimestamp(),
+        .setDescription('Saving the transcript. This channel will be deleted shortly.'),
     ],
     components: [],
   });
@@ -154,8 +152,7 @@ async function handleCloseCancel(interaction) {
       new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle('Close cancelled')
-        .setDescription('The ticket will remain open.')
-        .setTimestamp(),
+        .setDescription('The ticket will remain open.'),
     ],
     components: [],
   });
@@ -214,8 +211,7 @@ async function _logClose(interaction, ticket, files = []) {
       { name: 'Opener',   value: `<@${ticket.opener_id}>`, inline: true },
       { name: 'Category', value: ticket.topic || 'Other',  inline: true },
       { name: 'Closed by', value: `<@${interaction.user.id}>`, inline: true }
-    )
-    .setTimestamp();
+    );
 
   await logToModLog(interaction.client, interaction.guildId, embed, files);
 }

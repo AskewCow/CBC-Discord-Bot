@@ -69,8 +69,7 @@ module.exports = {
         .addFields(
           { name: 'Project',        value: project.name,               inline: true },
           { name: 'Unpublished by', value: `<@${interaction.user.id}>`, inline: true },
-        )
-        .setTimestamp()).catch(() => {});
+        )).catch(() => {});
     }
 
     return interaction.editReply({

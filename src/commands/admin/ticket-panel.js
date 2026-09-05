@@ -222,8 +222,7 @@ module.exports = {
           { name: 'Description', value: panel.description },
           { name: `Dropdown Options (${options.length}/24 custom)`, value: optionLines }
         )
-        .setFooter({ text: '"Other" is always shown as the last option automatically.' })
-        .setTimestamp();
+        .setFooter({ text: '"Other" is always shown as the last option automatically.' });
 
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }

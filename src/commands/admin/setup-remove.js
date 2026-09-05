@@ -114,8 +114,7 @@ module.exports = {
         { name: 'Setting',    value: label,                           inline: true },
         { name: 'Value',      value: mention,                         inline: true },
         { name: 'Updated By', value: `<@${interaction.user.id}>`,    inline: true },
-      )
-      .setTimestamp();
+      );
     await logToModLog(interaction.client, interaction.guildId, logEmbed);
 
     return interaction.reply({

@@ -124,8 +124,7 @@ async function runBackup(client, guild) {
     new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle('🗄️⠀Backup sent')
-      .setDescription(`Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`)
-      .setTimestamp(),
+      .setDescription(`Sent to ${sent}/${recipients.length} member(s) with ${ambassadorMention}.`),
   ).catch(() => {});
 
   return { recipients: recipients.length, sent, failed: failed.length };

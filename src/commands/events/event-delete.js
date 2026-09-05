@@ -95,8 +95,7 @@ module.exports = {
         { name: 'Was scheduled for', value: `<t:${event.starts_at}:F>`, inline: true },
         { name: 'Location',          value: event.location || 'TBD',    inline: true },
       )
-      .setFooter({ text: 'CBC Events' })
-      .setTimestamp();
+      .setFooter({ text: 'CBC Events' });
 
     for (const userId of participants) {
       try {
@@ -120,7 +119,6 @@ module.exports = {
         { name: 'Deleted by',        value: `<@${interaction.user.id}>`,                inline: true  },
         { name: 'Participants notified', value: `${participants.length}`,               inline: true  },
       )
-      .setTimestamp()
       .setFooter({ text: 'CBC Events' });
 
     await logToModLog(interaction.client, interaction.guildId, logEmbed);

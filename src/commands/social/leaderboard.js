@@ -133,8 +133,7 @@ async function logLeaderboard(interaction, scope, includeCommittee, rows, starte
       { name: 'Scope',        value: scopeLabel,                                 inline: true },
       { name: 'Committee',    value: includeCommittee ? 'Included' : 'Excluded', inline: true },
       { name: 'Top 3',        value: top3 },
-    )
-    .setTimestamp();
+    );
 
   await logToModLog(interaction.client, interaction.guild.id, logEmbed);
 }

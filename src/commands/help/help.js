@@ -18,8 +18,7 @@ module.exports = {
         new EmbedBuilder()
           .setColor(0x5865f2)
           .setTitle('🎫  Need help?')
-          .setDescription(description)
-          .setTimestamp(),
+          .setDescription(description),
       ],
       flags: MessageFlags.Ephemeral,
     });
