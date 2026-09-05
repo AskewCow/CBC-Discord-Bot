@@ -1,7 +1,7 @@
-const { SlashCommandBuilder, MessageFlags, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const pg     = require('../../database/pg');
 const logger = require('../../utils/logger');
-const { requireCommittee } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 const { errorEmbed, successEmbed } = require('../../utils/embeds');
 const { deriveTagsFromGitHub } = require('../../utils/githubTags');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
@@ -11,6 +11,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('publish-project')
     .setDescription('Publish a submitted project to the CBC website showcase')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt.setName('project')
         .setDescription('The project to publish')
@@ -34,7 +35,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!(await requireCommittee(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     const projectId = parseInt(interaction.options.getString('project'), 10);
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });

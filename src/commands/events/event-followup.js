@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const db = require('../../database/db');
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const { requireAmbassador } = require('../../utils/permissions');
@@ -7,6 +7,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('event-followup')
     .setDescription('Configure the post-event message sent to attendees after an event ends')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt.setName('message').setDescription('The follow-up message text').setRequired(false)
     )

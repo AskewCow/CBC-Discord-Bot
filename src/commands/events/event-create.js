@@ -1,5 +1,6 @@
 const {
   SlashCommandBuilder,
+  PermissionFlagsBits,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
@@ -11,7 +12,7 @@ const pg = require('../../database/pg');
 const config = require('../../utils/config');
 const { CONFIG_KEYS } = require('../../constants');
 const { successEmbed, errorEmbed } = require('../../utils/embeds');
-const { requireCommittee } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const {
   EVENT_COLORS,
@@ -31,6 +32,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('event-create')
     .setDescription('Create a new event and post it to the events channel')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt.setName('type').setDescription('Event type').setRequired(true)
         .addChoices(
@@ -69,7 +71,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!(await requireCommittee(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     const type     = interaction.options.getString('type');
     const datetime = interaction.options.getString('datetime');

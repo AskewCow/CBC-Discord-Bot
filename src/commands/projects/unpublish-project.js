@@ -1,7 +1,7 @@
-const { SlashCommandBuilder, MessageFlags, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const pg     = require('../../database/pg');
 const logger = require('../../utils/logger');
-const { requireCommittee } = require('../../utils/permissions');
+const { requireAmbassador } = require('../../utils/permissions');
 const { errorEmbed, successEmbed } = require('../../utils/embeds');
 const { revalidateWebsite } = require('../../utils/websiteRevalidate');
 const { logToModLog } = require('../../utils/eventHandlers');
@@ -10,6 +10,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('unpublish-project')
     .setDescription('Remove a project from the CBC website showcase')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt.setName('project')
         .setDescription('The project to unpublish')
@@ -33,7 +34,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!(await requireCommittee(interaction))) return;
+    if (!(await requireAmbassador(interaction))) return;
 
     const projectId = parseInt(interaction.options.getString('project'), 10);
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
