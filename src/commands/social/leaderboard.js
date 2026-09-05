@@ -2,6 +2,7 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   PermissionFlagsBits,
+  MessageFlags,
 } = require('discord.js');
 const { requireAmbassador }            = require('../../utils/permissions');
 const { getLeaderboard, createLeaderboard } = require('../../utils/inviteUtils');
@@ -34,7 +35,10 @@ module.exports = {
   async execute(interaction) {
     if (!(await requireAmbassador(interaction))) return;
 
-    await interaction.deferReply();
+    // Acknowledge privately, then post the leaderboard as a standalone bot
+    // message so it isn't tagged "<user> used /invite-leaderboard". The posted
+    // message is the persistent one the live refresher edits later.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const scope            = interaction.options.getString('scope');
     const includeCommittee = interaction.options.getBoolean('include_committee');
@@ -50,17 +54,18 @@ module.exports = {
     rows = rows.slice(0, 10);
 
     const embed = buildLeaderboardEmbed(rows, scope, includeCommittee, startedAt);
-    const reply = await interaction.editReply({ embeds: [embed] });
+    const message = await interaction.channel.send({ embeds: [embed] });
 
     createLeaderboard({
       guildId,
-      channelId:        reply.channelId,
-      messageId:        reply.id,
+      channelId:        message.channelId,
+      messageId:        message.id,
       scope,
       startedAt:        startedAt ?? Date.now(),
       includeCommittee,
     });
 
+    await interaction.deleteReply().catch(() => {});
     await logLeaderboard(interaction, scope, includeCommittee, rows, startedAt);
   },
 };
