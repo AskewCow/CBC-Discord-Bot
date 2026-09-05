@@ -21,6 +21,16 @@ function hasRole(member, roleId) {
   return member.roles.cache.has(roleId);
 }
 
+// Holds the configured Member role (assigned on completing onboarding).
+// Ambassadors/committee always count. If no Member role is configured for the
+// guild, this passes for everyone — the gate only applies once one is set.
+function isMember(member) {
+  if (isCommittee(member)) return true;
+  const memberRoles = config.getValues(member.guild.id, CONFIG_KEYS.MEMBER_ROLE);
+  if (memberRoles.length === 0) return true;
+  return memberRoles.some(id => member.roles.cache.has(id));
+}
+
 // "Mod" / staff = anyone with ambassador or committee privileges. These are
 // the roles granted management access inside ticket channels.
 function isMod(member) {
@@ -49,11 +59,18 @@ async function requireCommittee(interaction) {
   return _deny(interaction, 'ambassadors and committee members');
 }
 
+async function requireMember(interaction) {
+  if (isMember(interaction.member)) return true;
+  return _deny(interaction, 'members (complete onboarding first)');
+}
+
 module.exports = {
   isAmbassador,
   isCommittee,
+  isMember,
   hasRole,
   isMod,
   requireAmbassador,
   requireCommittee,
+  requireMember,
 };

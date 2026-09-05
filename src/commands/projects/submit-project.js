@@ -13,6 +13,7 @@ const logger = require('../../utils/logger');
 const { errorEmbed, successEmbed } = require('../../utils/embeds');
 const { buildProjectEmbed, buildVoteRow } = require('../../utils/projectUtils');
 const { logToModLog } = require('../../utils/eventHandlers');
+const { requireMember } = require('../../utils/permissions');
 
 // Keyed by userId; holds built_with + thumbnail URL until modal submits
 const pendingSubmissions = new Map();
@@ -48,6 +49,8 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    if (!(await requireMember(interaction))) return;
+
     // Cooldown: reject if this user submitted within the window.
     const nowSec = Math.floor(Date.now() / 1000);
     const last = await pg.get(
