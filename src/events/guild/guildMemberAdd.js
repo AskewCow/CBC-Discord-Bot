@@ -14,6 +14,10 @@ module.exports = {
   name: Events.GuildMemberAdd,
   once: false,
   async execute(member) {
+    // Bots aren't club members — keep them out of the members table so the
+    // public count and the startup reconcile agree.
+    if (member.user.bot) return;
+
     logger.info(`New member joined: ${member.user.tag} (${member.id})`);
 
     const { usedCode, inviterId } = await detectUsedInvite(member);

@@ -26,7 +26,7 @@ async function cacheGuildInvites(client) {
       client.inviteCache.set(guild.id, map);
       logger.debug(`Cached and synced ${map.size} invites for guild ${guild.id}`);
 
-      await reconcileDepartedMembers(guild);
+      await reconcileMembers(guild);
     } catch (err) {
       logger.warn(`Could not fetch invites for guild ${guild.id}: ${err.message}`);
       client.inviteCache.set(guild.id, new Map());
@@ -34,24 +34,47 @@ async function cacheGuildInvites(client) {
   }
 }
 
-async function reconcileDepartedMembers(guild) {
+async function reconcileMembers(guild) {
   try {
     const guildMembers = await guild.members.fetch();
-    const currentIds   = [...guildMembers.keys()];
+    const humans = [...guildMembers.values()].filter((m) => !m.user.bot);
     const now = nowSec();
 
-    // Mark anyone still flagged present in the DB who is no longer in the guild.
-    await pg.query(
-      `UPDATE members
-          SET left_at = $1
-        WHERE left_at IS NULL
-          AND discord_id <> ALL($2::text[])`,
-      [now, currentIds],
-    );
+    // Backfill / refresh a row for everyone currently in the guild. This is what
+    // seeds members who were already present before the bot started tracking,
+    // and self-heals any join missed while the bot was offline. Existing rows
+    // keep their original joined_at + invite_code; a rejoin clears left_at.
+    await pg.tx(async (client) => {
+      for (const m of humans) {
+        const joinedAt = m.joinedTimestamp
+          ? Math.floor(m.joinedTimestamp / 1000)
+          : now;
+        await client.query(
+          `INSERT INTO members (discord_id, username, joined_at, left_at)
+           VALUES ($1, $2, $3, NULL)
+           ON CONFLICT (discord_id) DO UPDATE SET
+             username = excluded.username,
+             left_at  = NULL`,
+          [m.id, m.user.tag, joinedAt],
+        );
+      }
+    });
 
-    logger.debug(`Reconciled departed members for guild ${guild.id}`);
+    // Mark anyone still flagged present in the DB who is no longer in the guild.
+    const currentIds = humans.map((m) => m.id);
+    if (currentIds.length) {
+      await pg.query(
+        `UPDATE members
+            SET left_at = $1
+          WHERE left_at IS NULL
+            AND discord_id <> ALL($2::text[])`,
+        [now, currentIds],
+      );
+    }
+
+    logger.info(`Reconciled ${currentIds.length} members for guild ${guild.id}`);
   } catch (err) {
-    logger.warn(`Could not reconcile departed members for guild ${guild.id}: ${err.message}`);
+    logger.warn(`Could not reconcile members for guild ${guild.id}: ${err.message}`);
   }
 }
 
@@ -80,5 +103,15 @@ module.exports = {
     eventScheduler.start(client);
     projectScheduler.start(client);
     backupScheduler.start(client);
+
+    // Periodic safety net: gateway member events are reliable while connected,
+    // but a long-lived process that dropped an event between reconnects would
+    // otherwise drift. Re-reconcile every 6h. (Restarts already reconcile above.)
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+    setInterval(() => {
+      for (const guild of client.guilds.cache.values()) {
+        reconcileMembers(guild).catch(() => {});
+      }
+    }, SIX_HOURS).unref();
   },
 };

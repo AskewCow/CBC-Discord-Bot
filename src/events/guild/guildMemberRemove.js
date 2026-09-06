@@ -9,6 +9,8 @@ module.exports = {
   name: Events.GuildMemberRemove,
   once: false,
   async execute(member) {
+    if (member.user.bot) return;
+
     logger.info(`Member left: ${member.user.tag} (${member.id})`);
     const now = nowSec();
     await pg.query('UPDATE members SET left_at = $1 WHERE discord_id = $2', [now, member.id])
