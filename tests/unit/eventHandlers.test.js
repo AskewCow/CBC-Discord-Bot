@@ -127,6 +127,13 @@ describe('buildEventEmbed', () => {
     assert.equal(data.fields.find(f => f.name === 'Participants').value, '42');
   });
 
+  test('shows a Registration field with the link instead of Participants when registration_url is set', () => {
+    const data = buildEventEmbed(makeEvent({ registration_url: 'https://lu.ma/abc' }), [], 42).toJSON();
+    assert.ok(!data.fields.find(f => f.name === 'Participants'));
+    const reg = data.fields.find(f => f.name === 'Registration');
+    assert.ok(reg.value.includes('https://lu.ma/abc'));
+  });
+
   test('shows Duration field using formatDuration', () => {
     const data = buildEventEmbed(makeEvent({ duration_minutes: 90 }), [], 0).toJSON();
     assert.equal(data.fields.find(f => f.name === 'Duration').value, '1 hour 30 minutes');
@@ -186,23 +193,31 @@ describe('buildCancelledEmbed', () => {
 
 describe('buildRegisterRow', () => {
   test('button label is Register', () => {
-    const [btn] = buildRegisterRow(5).toJSON().components;
+    const [btn] = buildRegisterRow({ id: 5 }).toJSON().components;
     assert.equal(btn.label, 'Register');
   });
 
   test('custom ID contains event ID', () => {
-    const [btn] = buildRegisterRow(5).toJSON().components;
+    const [btn] = buildRegisterRow({ id: 5 }).toJSON().components;
     assert.ok(btn.custom_id.includes('5'));
   });
 
   test('enabled by default', () => {
-    const [btn] = buildRegisterRow(5).toJSON().components;
+    const [btn] = buildRegisterRow({ id: 5 }).toJSON().components;
     assert.equal(btn.disabled, false);
   });
 
   test('disabled when passed true', () => {
-    const [btn] = buildRegisterRow(5, true).toJSON().components;
+    const [btn] = buildRegisterRow({ id: 5 }, true).toJSON().components;
     assert.equal(btn.disabled, true);
+  });
+
+  test('uses a Link-style button to the URL when registration_url is set', () => {
+    const [btn] = buildRegisterRow({ id: 5, registration_url: 'https://lu.ma/abc' }).toJSON().components;
+    assert.equal(btn.label, 'Register');
+    assert.equal(btn.style, 5); // ButtonStyle.Link
+    assert.equal(btn.url, 'https://lu.ma/abc');
+    assert.equal(btn.custom_id, undefined);
   });
 });
 

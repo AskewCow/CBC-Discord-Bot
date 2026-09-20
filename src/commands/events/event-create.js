@@ -69,6 +69,11 @@ module.exports = {
     )
     .addUserOption(opt =>
       opt.setName('organizer5').setDescription('Additional organiser').setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName('link')
+        .setDescription('External registration link (e.g. Luma) — omit to use in-Discord registration')
+        .setRequired(false)
     ),
 
   async execute(interaction) {
@@ -78,6 +83,17 @@ module.exports = {
     const datetime = interaction.options.getString('datetime');
     const duration = interaction.options.getInteger('duration');
     const ping     = interaction.options.getBoolean('ping');
+    const link     = interaction.options.getString('link');
+
+    let registrationUrl = null;
+    if (link) {
+      try { registrationUrl = new URL(link).toString(); } catch {
+        return interaction.reply({
+          embeds: [errorEmbed('Invalid link', 'Please provide a valid URL (e.g. `https://lu.ma/...`).')],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
 
     // Collect unique organizers
     const organizerUsers = [];
@@ -125,7 +141,7 @@ module.exports = {
 
     // Stash validated state so the modal handler can retrieve it
     pending.set(`${interaction.guildId}:${interaction.user.id}`, {
-      type, duration, ping, startsAt,
+      type, duration, ping, startsAt, registrationUrl,
       organizerIds:   organizerUsers.map(u => u.id),
       eventChannelId: eventChannelIds[0],
     });
@@ -180,7 +196,7 @@ module.exports = {
     const location    = interaction.fields.getTextInputValue('location').trim();
     const description = interaction.fields.getTextInputValue('description').trim() || null;
 
-    const { type, duration, ping, startsAt, organizerIds, eventChannelId } = state;
+    const { type, duration, ping, startsAt, registrationUrl, organizerIds, eventChannelId } = state;
 
     const eventsChannel = await interaction.client.channels.fetch(eventChannelId).catch(() => null);
     if (!eventsChannel) {
@@ -201,14 +217,14 @@ module.exports = {
 
     const { rows: [{ id: eventId }] } = await pg.query(
       `INSERT INTO events
-         (name, type, location, description, starts_at, ends_at, duration_minutes, ping, created_by, guild_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         (name, type, location, description, starts_at, ends_at, duration_minutes, ping, created_by, guild_id, created_at, registration_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [
         name, type, location, description,
         startsAt, startsAt + duration * 60,
         duration, ping,
-        interaction.user.id, interaction.guildId, now,
+        interaction.user.id, interaction.guildId, now, registrationUrl,
       ],
     );
 
@@ -234,9 +250,9 @@ module.exports = {
 
     await recountEvent(eventId);
 
-    const eventRow = { id: eventId, name, type, location, description, starts_at: startsAt, duration_minutes: duration };
+    const eventRow = { id: eventId, name, type, location, description, starts_at: startsAt, duration_minutes: duration, registration_url: registrationUrl };
     const embed    = buildEventEmbed(eventRow, organizerIds, organizerIds.length);
-    const row      = buildRegisterRow(eventId);
+    const row      = buildRegisterRow(eventRow);
 
     const message = await eventsChannel.send({ embeds: [embed], components: [row] });
 
@@ -263,6 +279,7 @@ module.exports = {
         { name: 'Organiser(s)', value: mentionList(organizerIds),         inline: false },
         { name: 'Created by',   value: `<@${interaction.user.id}>`,       inline: true  },
         { name: 'Ping sent',    value: ping ? 'Yes' : 'No',              inline: true  },
+        { name: 'Registration', value: registrationUrl ? `[External link](${registrationUrl})` : 'In Discord', inline: true },
       ],
     });
 

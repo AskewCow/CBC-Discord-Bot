@@ -98,7 +98,9 @@ function buildEventEmbed(event, organizers, participantCount, ended = false) {
       { name: 'Time',         value: timeValue,                                   inline: true },
       { name: 'Duration',     value: formatDuration(event.duration_minutes),      inline: true },
       { name: SPACER,         value: SPACER,                                     inline: true },
-      { name: 'Participants', value: `${participantCount}`,                       inline: true },
+      event.registration_url
+        ? { name: 'Registration', value: `[Register here ↗](${event.registration_url})`, inline: true }
+        : { name: 'Participants', value: `${participantCount}`,                           inline: true },
     )
     .setFooter(brandFooter(isEnded ? 'This event has ended.' : 'CBC Events'));
 
@@ -106,10 +108,22 @@ function buildEventEmbed(event, organizers, participantCount, ended = false) {
   return embed;
 }
 
-function buildRegisterRow(eventId, disabled = false) {
+// `event` needs at least `id` and `registration_url`. Events with an external
+// registration link (e.g. Luma) get a Link button straight to that URL instead
+// of the in-Discord Register flow — the bot never tracks who signs up there.
+function buildRegisterRow(event, disabled = false) {
+  if (event.registration_url) {
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel('Register')
+        .setStyle(ButtonStyle.Link)
+        .setURL(event.registration_url)
+        .setDisabled(disabled),
+    );
+  }
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`event:register:${eventId}`)
+      .setCustomId(`event:register:${event.id}`)
       .setLabel('Register')
       .setStyle(ButtonStyle.Success)
       .setDisabled(disabled),
@@ -185,7 +199,7 @@ async function updateEventEmbed(client, event, ended = false, opts = {}) {
 
     await message.edit({
       embeds:     [buildEventEmbed(event, organizers, cnt, ended)],
-      components: [buildRegisterRow(event.id, ended)],
+      components: [buildRegisterRow(event, ended)],
     });
   } catch (err) {
     logger.warn(`Could not update event embed (${event.id}): ${err.message}`);
@@ -221,6 +235,13 @@ async function handleRegister(interaction) {
   const event = await pg.get('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!event) {
     return interaction.reply({ content: 'This event no longer exists.', flags: MessageFlags.Ephemeral });
+  }
+
+  if (event.registration_url) {
+    return interaction.reply({
+      content: `Registration for this event is handled externally: ${event.registration_url}`,
+      flags: MessageFlags.Ephemeral,
+    });
   }
 
   if (event.starts_at + event.duration_minutes * 60 <= now) {
